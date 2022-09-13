@@ -420,6 +420,19 @@ class SimEvents():
             self.ang_err = f["ang_err"][()]
             self.source_label = f["source_label"][()]
 
+    
+
+
+class RealEvents():
+    def __init(self, path):
+        self.path = path
+        with h5py.File(path, "r") as f:
+            self.reco_energy = f["reco_energy"][()]
+            self.ra = f["ra"][()]
+            self.dec = f["dec"][()]
+            self.ang_err = f["ang_err"][()]
+
+
 
 
 def crawl_delay():

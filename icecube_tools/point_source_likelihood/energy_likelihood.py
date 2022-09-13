@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 import h5py
 from os.path import join
 
+from icecube_tools.utils.data import SimEvents
+
 """
 Module to compute the IceCube energy likelihood
 using publicly available information.
@@ -74,14 +76,18 @@ class MarginalisedEnergyLikelihood2021(MarginalisedEnergyLikelihood):
         for c, i in enumerate(self.index_list):
             filename = join(path, f"{fname}_index_{i:.1f}.h5")
             print(filename)
+            """
             with h5py.File(filename, "r") as f:
                 reco_energy = f["reco_energy"][()]
                 dec = f["dec"][()]
                 #ang_err not needed
                 #ang_err = f["ang_err"][()]
+            """
+            events = SimEvents(filename)
+
             self.likelihood[f"{float(i):1.1f}"] = MarginalisedEnergyLikelihoodFromSimFixedIndex(
-                reco_energy,
-                dec,
+                events.reco_energy,
+                events.dec,
                 i,
                 src_dec,
                 min_E,
