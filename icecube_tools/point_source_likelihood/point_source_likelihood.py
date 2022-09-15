@@ -81,8 +81,15 @@ class PointSourceLikelihood:
 
         self._dec_high = source_coord[1] + np.deg2rad(self._band_width)
 
-        if self._dec_low < np.arcsin(-0.1) or np.isnan(self._dec_low):
-            self._dec_low = np.arcsin(-0.1)
+        if isinstance(self._energy_likelihood, MarginalisedEnergyLikelihood2021) and
+            isinstance(self._direction_likelihood, EnergyDependentSpatialGaussianLikelihood):
+
+            if self._dec_low < np.arcsin(-1.0) or np.isnan(self._dec_low):
+                self._dec_low = np.arcsin(-1.0) 
+        else:
+
+            if self._dec_low < np.arcsin(-0.1) or np.isnan(self._dec_low):
+                self._dec_low = np.arcsin(-0.1)
 
         if self._dec_high > np.arcsin(1.0) or np.isnan(self._dec_high):
             self._dec_high = np.arcsin(1.0)
@@ -122,6 +129,9 @@ class PointSourceLikelihood:
 
         # Can't have more source events than actual events...
         self._ns_max = self.N
+
+        if self.N == 0:
+            raise ValueError("No events in selected sky region.")
 
         self.Ntot = len(self._energies)
 
