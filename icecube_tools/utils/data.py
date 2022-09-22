@@ -409,28 +409,104 @@ class Uptime():
 
 
 class SimEvents():
-    def __init__(self, path):
-        #read in data, store in attributes
-        self.path = path
-        with h5py.File(path, "r") as f:
-            self.true_energy = f["true_energy"][()]
-            self.reco_energy = f["reco_energy"][()]
-            self.ra = f["ra"][()]
-            self.dec = f["dec"][()]
-            self.ang_err = f["ang_err"][()]
-            self.source_label = f["source_label"][()]
+    """
+    Container for simulated events.
+    """
 
+    def __init__(
+        self,
+        true_energy,
+        reco_energy,
+        ra,
+        dec,
+        ang_err,
+        source_label
+    ):
+        """
+        Instantiate SimEvents, all quantities should be np.ndarray.
+        :param true_energy: True energy, GeV
+        :param reco_energy: Reconstructed energy, GeV
+        :param ra: RA, rad
+        :param dec: DEC, rad
+        :param ang_err: angular error, degree
+        :param source_label: List(int)
+        """
+
+        self.true_energy = true_energy
+        self.reco_energy = reco_energy
+        self.ra = ra
+        self.dec = dec
+        self.ang_err = ang_err
+        self.source_label = source_label
+
+
+    @classmethod
+    def read_from_h5(cls, path):
+        """
+        Create SimEvents from a path to h5 created by simulator.
+        :param path: Path to h5
+        """
     
+        with h5py.File(path, "r") as f:
+            true_energy = f["true_energy"][()]
+            reco_energy = f["reco_energy"][()]
+            ra = f["ra"][()]
+            dec = f["dec"][()]
+            ang_err = f["ang_err"][()]
+            source_label = f["source_label"][()]
+
+        return cls(true_energy, reco_energy, ra, dec, ang_err, source_label)
+
 
 
 class RealEvents():
-    def __init(self, path):
-        self.path = path
-        with h5py.File(path, "r") as f:
-            self.reco_energy = f["reco_energy"][()]
-            self.ra = f["ra"][()]
-            self.dec = f["dec"][()]
-            self.ang_err = f["ang_err"][()]
+    """
+    Container for real events.
+    """
+
+    def __init__(
+        self,
+        reco_energy,
+        ra,
+        dec,
+        ang_err,
+        obs_time
+    ):
+        """
+        Instantiate RealEvents, all quantities should be np.ndarray.
+        :param reco_energy: Reconstructed energy, GeV
+        :param ra: RA, rad
+        :param dec: DEC, rad
+        :param ang_err: angular error, degree
+        :param obs_time: Observation time, MJD
+        """
+
+        self.reco_energy = reco_energy
+        self.ra = ra
+        self.dec = dec
+        self.ang_err = ang_err
+        self.time = obs_time
+
+
+    @classmethod
+    def read_from_file(cls, path):
+        """
+        Reads events in format of 10 year data release.
+        :param path: Path to file
+        """
+
+        data = np.loadtxt(path)
+        reco_energy = np.power(10, data[:, 1])
+        ang_err = data[:, 2]
+        ra = np.deg2rad(data[:, 3])
+        dec = np.deg2rad(data[:, 4])
+        obs_time = data[:, 0]
+
+        return cls(reco_energy, ra, dec, ang_err, obs_time)
+
+
+    def read_from_arrays():
+        pass        
 
 
 
