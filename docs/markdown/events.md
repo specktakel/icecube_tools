@@ -26,8 +26,11 @@ The available data fields are:
 vars(events).keys()
 ```
 
-Just as the simulation's output.
+Just as the simulation's output. They can be accessed like a dictionary, as well:
 
+```python
+events["ra"]
+```
 
 ## Real events
 

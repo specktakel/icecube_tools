@@ -458,11 +458,30 @@ class SimEvents():
         return cls(true_energy, reco_energy, ra, dec, ang_err, source_label)
 
 
+    def __getitem__(self, key):
+        if key == "ra":
+            return self.ra
+        elif key == "dec":
+            return self.dec
+        elif key == "ang_err":
+            return self.ang_err
+        elif key == "source_label":
+            return self.source_label
+        elif key == "reco_energy":
+            return self.reco_energy
+        elif key == "true_energy":
+            return self.true_energy
+        else:
+            raise KeyError(f"Key {key} not available.")
+
+
 
 class RealEvents():
     """
     Container for real events.
     """
+
+    keys = ["ra", "dec", "reco_energy", "ang_err", "obs_time"]
 
     def __init__(
         self,
@@ -506,9 +525,25 @@ class RealEvents():
 
 
     def read_from_arrays():
-        pass        
+        pass       
 
 
+    def __getitem__(self, key):
+        if key == "ra":
+            return self.ra
+        elif key == "dec":
+            return self.dec
+        elif key == "ang_err":
+            return self.ang_err
+        elif key == "reco_energy":
+            return self.reco_energy
+        else:
+            raise KeyError(f"Key {key} not available.")
+
+
+    def __iter__(self):
+        for k in self.keys:
+            yield self[k]
 
 
 def crawl_delay():

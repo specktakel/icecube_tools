@@ -17,7 +17,7 @@ from .source.flux_model import PowerLawFlux, BrokenPowerLawFlux
 from .neutrino_calculator import NeutrinoCalculator
 from .detector.angular_resolution import FixedAngularResolution, AngularResolution
 from .detector.r2021 import R2021IRF
-from .utils.data import Uptime
+from .utils.data import Uptime, SimEvents
 
 """
 Module for running neutrino production 
@@ -27,11 +27,9 @@ and detection simulations.
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# logger.addHandler(sys.stdout)
 
 
 class Simulator:
-    #logger = logging.getLogger(__name__)
     def __init__(self, sources, detector):
         """
         Class for handling simple neutrino production
