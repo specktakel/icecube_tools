@@ -32,6 +32,47 @@ class SpatialLikelihood(ABC):
         pass
 
 
+class RayleighDistribution(SpatialLikelihood):
+    """
+    If you transform a 2d Gauss from cartesian to polar coordinates,
+    you'd probably arrive here.
+    """
+
+    def __init__(self, sigma=2):
+        # Why am I copying this? Is this used somewhere?
+        self._sigma = sigma    
+
+    def __call__(
+        self,
+        ang_err: np.ndarray,
+        ra: np.ndarray,
+        dec: np.ndarray,
+        source_coord: Tuple[float, float],
+    ):
+        """
+        Returns the Rayleigh distribution after integrating over phi.
+        """
+
+        sigma_rad = np.deg2rad(ang_err)
+
+        src_ra, src_dec = source_coord
+
+        # Calculate the cosine of the distance of the source and the event on
+        # the sphere.
+        cos_r = np.cos(src_ra - ra) * np.cos(src_dec) * np.cos(dec) + np.sin(
+            src_dec
+        ) * np.sin(dec)
+
+        # Handle possible floating precision errors.
+        idx = np.nonzero((cos_r < -1.0))
+        cos_r[idx] = 1.0
+        idx = np.nonzero((cos_r > 1.0))
+        cos_r[idx] = 1.0
+
+        r = np.arccos(cos_r)
+
+        return r / (2 * np.pi * np.sin(r) * np.power(sigma_rad, 2)) * np.exp(-np.power(r, 2) / (2 * np.power(sigma_rad, 2)))
+
 
 class EventDependentSpatialGaussianLikelihood(SpatialLikelihood):
     def __init__(self, sigma=2):
