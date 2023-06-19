@@ -4,7 +4,7 @@ import logging
 
 from .energy_likelihood import *
 from .spatial_likelihood import *
-from .datadrivenbackgroundlikelihood import DataDrivenBackgroundLikelihood
+from .datadriven_background_likelihood import DataDrivenBackgroundLikelihood
 
 from ..source.source_model import PointSource
 from ..source.flux_model import PowerLawFlux
