@@ -313,7 +313,7 @@ class PointSourceLikelihood:
             )
 
         if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundLikelihood):
-            self._bg_llh = self._bg_energy_likelihood(self._selected_bg_energies, 2.0, self._selected_bg_decs)
+            self._bg_llh = self._bg_energy_likelihood(self._selected_energies, 2.0, self._selected_decs)
             self._bg_llh[np.nonzero(self._bg_llh==0.)] = 1e-10
 
 
