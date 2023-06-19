@@ -312,6 +312,9 @@ class PointSourceLikelihood:
                 self._source_coord
             )
 
+        if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundLikelihood):
+            self._bg_llh = self._bg_energy_likelihood(self._selected_bg_energies, 2.0, self._selected_bg_decs)
+            self._bg_llh[np.nonzero(self._bg_llh==0.)] = 1e-10
 
 
     def _signal_likelihood(
@@ -398,8 +401,8 @@ class PointSourceLikelihood:
         # Check for background being completely determined by data likelihood
         if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundLikelihood) and \
             isinstance(self._bg_spatial_likelihood, DataDrivenBackgroundLikelihood):
-            output = self._bg_energy_likelihood(energy, 0., dec)
-            output[np.nonzero(output==0.)] = 1e-10
+            output = self._bg_llh
+            # output[np.nonzero(output==0.)] = 1e-10
             return output
 
         if self._bg_energy_likelihood is not None:
