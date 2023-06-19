@@ -4,11 +4,12 @@ import logging
 
 from .energy_likelihood import *
 from .spatial_likelihood import *
+from .datadrivenbackgroundlikelihood import DataDrivenBackgroundLikelihood
 
 from ..source.source_model import PointSource
 from ..source.flux_model import PowerLawFlux
 from ..neutrino_calculator import NeutrinoCalculator
-from ..detector.detector import TimeDependentIceCube
+# from ..detector.detector import TimeDependentIceCube
 from ..utils.data import Uptime
 
 from typing import Dict, List, Tuple, Sequence
@@ -302,7 +303,8 @@ class PointSourceLikelihood:
 
         self.N = self._energies.size #len(selected_dec_band[0])
 
-        if isinstance(self._direction_likelihood, EventDependentSpatialGaussianLikelihood):
+        if isinstance(self._direction_likelihood, EventDependentSpatialGaussianLikelihood) or \
+            isinstance(self._direction_likelihood, RayleighDistribution):
             self._signal_llh_spatial = self._direction_likelihood(
                 self._selected_ang_errs,
                 self._selected_ras,
@@ -345,7 +347,9 @@ class PointSourceLikelihood:
 
         elif isinstance(
             self._direction_likelihood, EventDependentSpatialGaussianLikelihood
-        ):
+        ) or isinstance(
+                self._direction_likelihood, RayleighDistribution
+            ):
             def spatial():
                 return self._signal_llh_spatial
             
@@ -390,6 +394,13 @@ class PointSourceLikelihood:
         :param index_atmo: Atmospheric background spectral index, defaults to 3.7
         :return: Likelihood for each provided event
         """
+
+        # Check for background being completely determined by data likelihood
+        if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundLikelihood) and \
+            isinstance(self._bg_spatial_likelihood, DataDrivenBackgroundLikelihood):
+            output = self._bg_energy_likelihood(energy, 0., dec)
+            output[np.nonzero(output==0.)] = 1e-10
+            return output
 
         if self._bg_energy_likelihood is not None:
             if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundEnergyLikelihood):
@@ -1078,12 +1089,13 @@ class TimeDependentPointSourceLikelihood:
         self._vary_astro = vary_astro
         self.likelihoods = OrderedDict()
         # Can use one spatial llh for all periods, 'tis but a Gaussian
-        spatial_llh = EventDependentSpatialGaussianLikelihood(sigma=sigma)
+        spatial_llh = RayleighDistribution(sigma=sigma)
         if times is None:
             self.times = self._uptime.cumulative_time_obs()
         else:
             self.times = times
-        self.tirf = TimeDependentIceCube.from_periods(*self._irf_periods)
+        # self.tirf = TimeDependentIceCube.from_periods(*self._irf_periods)
+        self.aeffs = [EffectiveArea.from_dataset("20210126", p) for p in self._irf_periods]
         self.nu_calcs = {}
         self.flux = PowerLawFlux(1e-20, 1e5, 2.5, lower_energy=emin, upper_energy=emax)
         self.source = PointSource(flux_model=self.flux, z=0., coord=self.source_coord)
@@ -1094,7 +1106,7 @@ class TimeDependentPointSourceLikelihood:
         else:
             create_e_llh = False
 
-        for p in self._irf_periods:
+        for c, p in enumerate(self._irf_periods):
             if create_e_llh:
                 energy_llh[p] = MarginalisedIntegratedEnergyLikelihood(
                     p,
@@ -1104,11 +1116,12 @@ class TimeDependentPointSourceLikelihood:
             
             self.nu_calcs[p] = NeutrinoCalculator(
                 [self.source],
-                self.tirf[p]._effective_area,
+                self.aeffs[c],
                 energy_resolution=energy_llh[p] if create_e_llh else None
             )
             #create likelihood objects
             
+            bg_llh = DataDrivenBackgroundLikelihood(p)
                 
             self.likelihoods[p] = PointSourceLikelihood(
                 spatial_llh,
@@ -1120,8 +1133,10 @@ class TimeDependentPointSourceLikelihood:
                 self.source_coord,
                 which=self.which,
                 band_width_factor=band_width_factor,
-                bg_energy_likelihood=DataDrivenBackgroundEnergyLikelihood(period=p),
-                bg_spatial_likelihood=DataDrivenBackgroundSpatialLikelihood(period=p),
+                #bg_energy_likelihood=DataDrivenBackgroundEnergyLikelihood(period=p),
+                #bg_spatial_likelihood=DataDrivenBackgroundSpatialLikelihood(period=p),
+                bg_energy_likelihood=bg_llh,
+                bg_spatial_likelihood=bg_llh,
             )
 
     @property
