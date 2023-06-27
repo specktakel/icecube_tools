@@ -398,9 +398,7 @@ class PointSourceLikelihood:
         # Check for background being completely determined by data likelihood
         if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundLikelihood) and \
             isinstance(self._bg_spatial_likelihood, DataDrivenBackgroundLikelihood):
-            output = self._bg_energy_likelihood(energy, 0., dec)
-            output[np.nonzero(output==0.)] = 1e-10
-            return output
+            return self._bg_energy_likelihood(energy, 0., dec)
 
         if self._bg_energy_likelihood is not None:
             if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundEnergyLikelihood):
