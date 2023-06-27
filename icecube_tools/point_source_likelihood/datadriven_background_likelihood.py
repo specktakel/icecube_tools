@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
+from scipy.stats import gaussian_kde
 from typing import Sequence
 
 from .energy_likelihood import MarginalisedEnergyLikelihood
@@ -10,10 +11,11 @@ from ..detector.effective_area import EffectiveArea
 
 class DataDrivenBackgroundLikelihood(MarginalisedEnergyLikelihood, SpatialLikelihood):
 
-    def __init__(self, period, bins: Sequence[float] = None, spline: bool = True):
+    def __init__(self, period, bins: Sequence[float] = None, spline: bool = True, kde: bool = False):
         self._period = period
         self._events = RealEvents.from_event_files(period, use_all=True)
         self._spline = spline
+        self._kde = kde
 
         # Combine declination bins of the irf and aeff
         # self._sin_dec_aeff_bins = np.linspace(-1., 1., num=51, endpoint=True)
@@ -50,6 +52,13 @@ class DataDrivenBackgroundLikelihood(MarginalisedEnergyLikelihood, SpatialLikeli
                 bounds_error=False
             )
 
+        elif kde:
+            ereco = np.log10(self._events.reco_energy[self._period])
+            sin_dec = np.sin(self._events.dec[self._period])
+            self._kde_likelihood = gaussian_kde(np.vstack((ereco, sin_dec)))
+
+            
+
     def __call__(self, energy, index, dec):
         """
         Calculate energy likelihood for given events
@@ -64,6 +73,10 @@ class DataDrivenBackgroundLikelihood(MarginalisedEnergyLikelihood, SpatialLikeli
             log_ereco = np.atleast_1d(log_ereco)
             coords = np.vstack((np.sin(dec), log_ereco)).T
             return np.power(10, self._splined_llh(coords)) / (2 * np.pi)
+
+        elif self._kde:
+
+            return self._kde_likelihood(np.vstack((log_ereco, np.sin(dec)))) / (2 * np.pi)
 
         else:
             sin_dec_idx = np.digitize(np.sin(dec), self._sin_dec_bins) - 1
