@@ -11,6 +11,7 @@ from icecube_tools.utils.data import (
     available_data_periods,
     RealEvents
 )
+from scipy.interpolate import RectBivariateSpline
 
 """
 Module for working with the public IceCube
@@ -422,6 +423,10 @@ class EffectiveArea(object):
 
         self._reader = self.get_reader(**kwargs)
 
+        self._spline_degree = kwargs.get("spline_degree", None)
+
+        self._spline_smooth = kwargs.get("s", 0)
+
         self.values = self._reader.effective_area_values.copy()
 
         self.true_energy_bins = self._reader.true_energy_bins
@@ -429,6 +434,56 @@ class EffectiveArea(object):
         self.cos_zenith_bins = self._reader.cos_zenith_bins
 
         self._integrate_out_ancillary_params()
+
+        if isinstance(self._spline_degree, int):
+
+            self._make_spline()
+
+    def __call__(self, energy, cosz):
+        """
+        Return effective areas at given energy and cosz
+        """
+
+        
+        if isinstance(energy, np.ndarray) and isinstance(cosz, np.ndarray):
+            assert energy.shape == cosz.shape
+
+        if hasattr(self, "_spline"):
+
+            return self._spline_call(energy, cosz)
+        
+        energy_idx = np.digitize(energy, self.true_energy_bins) - 1
+
+        cosz_idx = np.digitize(cosz, self.cos_zenith_bins) - 1
+
+        return self.values[energy_idx, cosz_idx]
+
+
+    def _histogam_call(self, energy, cosz):
+
+        energy_idx = np.digitize(energy, self.true_energy_bins) - 1
+
+        cosz_idx = np.digitize(cosz, self.cos_zenith_bins) - 1
+
+        return self.values[energy_idx, cosz_idx]
+    
+    def _spline_call(self, energy, cosz):
+
+        return np.power(10, self._spline(np.log10(energy), cosz, grid=False))
+    
+    def _make_spline(self):
+
+        degree = self._spline_degree
+
+        logE = np.log10(self.true_energy_bins)
+        E = (logE[:-1] + logE[1:]) / 2
+        c = (self.cos_zenith_bins[:-1] + self.cos_zenith_bins[1:]) / 2
+        vals = self.values.copy()
+        # mask out zero entries with 1e-10, in log -> -10 to avoid -infs
+        vals[vals==0] = 1e-10
+        self._spline = RectBivariateSpline(
+            E, c, np.log10(vals), kx=degree, ky=degree, s=self._spline_smooth
+        )
 
     def get_reader(self, **kwargs):
         """

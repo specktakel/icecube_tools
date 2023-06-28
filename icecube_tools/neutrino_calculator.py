@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import fsolve
+# from scipy.integrate import qquad
 
 from .source.source_model import Source, PointSource, DIFFUSE, POINT
 from .source.flux_model import FluxModel, PowerLawFlux
@@ -29,7 +30,8 @@ class NeutrinoCalculator:
         self,
         sources,
         effective_area,
-        energy_resolution: MarginalisedIntegratedEnergyLikelihood=None
+        energy_resolution: MarginalisedIntegratedEnergyLikelihood=None,
+        spline: int=0,
     ):
         """
         Calculate the expected number of detected neutrinos.
@@ -43,6 +45,8 @@ class NeutrinoCalculator:
         self._effective_area = effective_area
         
         self._energy_resolution = energy_resolution
+
+        self._spline = spline
 
     @property
     def source(self):
@@ -78,32 +82,37 @@ class NeutrinoCalculator:
 
     def _diffuse_calculation(self, source):
 
-        Em = self.effective_area.true_energy_bins[:-1]
-        EM = self.effective_area.true_energy_bins[1:]
-        czm = self.effective_area.cos_zenith_bins[:-1]
-        czM = self.effective_area.cos_zenith_bins[1:]
+        if False: #self._spline and isinstance(self._effective_area._spline_degree, int):
+            pass
 
-        # Switch labels due to sign
-        sdm = -czM.copy()
-        sdM = -czm.copy()
+        else:
 
-        dec_c = np.arcsin((sdm + sdM) / 2)
+            Em = self.effective_area.true_energy_bins[:-1]
+            EM = self.effective_area.true_energy_bins[1:]
+            czm = self.effective_area.cos_zenith_bins[:-1]
+            czM = self.effective_area.cos_zenith_bins[1:]
 
-        # TODO fix this for the data-driven background model
-        integrated_spectrum = source.flux_model.integrated_spectrum(Em, EM)
-        integrated_direction = (czM - czm) * 2 * np.pi
+            # Switch labels due to sign
+            sdm = -czM.copy()
+            sdM = -czm.copy()
 
-        bin_c = (np.log10(Em) + np.log10(EM)) / 2
-        p_det_above_thr = np.ones((bin_c.size, czm.size))
-        if self._energy_resolution is not None:
-            for c_e in range(bin_c.size):
-                for c_c in range(czm.size):
-                    p_det_above_thr[c_e, c_c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c_e]), dec_c[c_c])
+            dec_c = np.arcsin((sdm + sdM) / 2)
 
-        aeff = self._selected_aeff * M_TO_CM ** 2   # 1st index is energy, 2nd is cosz
-        dN_dt = integrated_spectrum.dot(aeff * p_det_above_thr).dot(integrated_direction)
+            # TODO fix this for the data-driven background model
+            integrated_spectrum = source.flux_model.integrated_spectrum(Em, EM)
+            integrated_direction = (czM - czm) * 2 * np.pi
 
-        return dN_dt * self._time * source.redshift_factor
+            bin_c = (np.log10(Em) + np.log10(EM)) / 2
+            p_det_above_thr = np.ones((bin_c.size, czm.size))
+            if self._energy_resolution is not None:
+                for c_e in range(bin_c.size):
+                    for c_c in range(czm.size):
+                        p_det_above_thr[c_e, c_c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c_e]), dec_c[c_c])
+
+            aeff = self._selected_aeff * M_TO_CM ** 2   # 1st index is energy, 2nd is cosz
+            dN_dt = integrated_spectrum.dot(aeff * p_det_above_thr).dot(integrated_direction)
+
+            return dN_dt * self._time * source.redshift_factor
 
     def _select_single_cos_zenith(self, source):
 
@@ -120,6 +129,21 @@ class NeutrinoCalculator:
     def _point_source_calculation(self, source):
 
         selected_bin_index = self._select_single_cos_zenith(source)
+        # calculate the flux for the bin centers next to the actual source dec
+        # interpolate over the resulting n
+
+        cos_zenith = -np.sin(source.coord[1])
+        cosz_bin_centers = (
+            self._effective_area.cos_zenith_bins[:-1] + self._effective_area.cos_zenith_bins[1:]
+        ) / 2.
+        cosz_center_index = np.digitize(cos_zenith, cosz_bin_centers) - 1
+
+        if cosz_center_index == selected_bin_index:
+            calc_at_these_idx = [cosz_center_index, cosz_center_index + 1]
+        elif cosz_center_index == selected_bin_index - 1:
+            calc_at_these_idx = [cosz_center_index - 1, cosz_center_index]
+
+        
 
         Em = self.effective_area.true_energy_bins[:-1]
         EM = self.effective_area.true_energy_bins[1:]
@@ -134,13 +158,23 @@ class NeutrinoCalculator:
             for c in range(bin_c.size):
                 p_det_above_thr[c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c]), source.coord[1])
 
-        aeff = self._selected_aeff.T[selected_bin_index] * M_TO_CM ** 2
-        # need to multiply with p(E detected above threshold)
-        # threshold given by data releas
+        dN_dt = []
+        for idx in calc_at_these_idx:
+            aeff = self._selected_aeff.T[idx] * M_TO_CM ** 2
+            # need to multiply with p(E detected above threshold)
+            # threshold given by data release
+            dN_dt.append(np.dot(aeff * p_det_above_thr, integrated_flux))
 
-        dN_dt = np.dot(aeff * p_det_above_thr, integrated_flux)
+        assert cos_zenith <= cosz_bin_centers[cosz_center_index+1]
+        assert cos_zenith >= cosz_bin_centers[cosz_center_index]
 
-        return dN_dt * self._time
+        dN_dt_interp = np.interp(
+            cos_zenith,
+            cosz_bin_centers[(np.array([cosz_center_index, cosz_center_index + 1]))],
+            dN_dt
+        )
+        
+        return dN_dt_interp * self._time
 
 
     def __call__(self, time=1, min_energy=1e2, max_energy=1e9, min_cosz=-1, max_cosz=1):
