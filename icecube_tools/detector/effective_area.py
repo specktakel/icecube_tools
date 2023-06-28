@@ -482,7 +482,7 @@ class EffectiveArea(object):
         # mask out zero entries with 1e-10, in log -> -10 to avoid -infs
         vals[vals==0] = 1e-10
         self._spline = RectBivariateSpline(
-            E, c, np.log10(vals), kx=degree, ky=degree, s=self._spline_smooth
+            E, c, np.log10(vals), kx=degree, ky=degree, s=0
         )
 
     def get_reader(self, **kwargs):

@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import fsolve
+from scipy.integrate import quad
 
 from .source.source_model import Source, PointSource, DIFFUSE, POINT
 from .source.flux_model import FluxModel, PowerLawFlux
@@ -117,30 +118,43 @@ class NeutrinoCalculator:
         return selected_bin_index
 
 
-    def _point_source_calculation(self, source):
+    def _point_source_calculation(self, source, min_energy, max_energy):
 
-        selected_bin_index = self._select_single_cos_zenith(source)
+        if hasattr(self.effective_area, "_spline"):
+            source_cosz = - np.arcsin(source.coord[1])
 
-        Em = self.effective_area.true_energy_bins[:-1]
-        EM = self.effective_area.true_energy_bins[1:]
-        # needs to be replaced by an integral
-        # going over reconstructed energy from minimally detected maximally detected
-        # or take the hi_nu shortcut:
-        # calculate integral at bin center, and assume that's fine
-        integrated_flux = source.flux_model.integrated_spectrum(Em, EM)
-        bin_c = (np.log10(Em) + np.log10(EM)) / 2
-        p_det_above_thr = np.ones((bin_c.size))
-        if self._energy_resolution is not None:
-            for c in range(bin_c.size):
-                p_det_above_thr[c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c]), source.coord[1])
+            def integrand(energy):
+                return source.flux_model.spectrum(energy) * self.effective_area(energy, source_cosz)
+            
+            integral = quad(integrand, min_energy, max_energy)[0]
 
-        aeff = self._selected_aeff.T[selected_bin_index] * M_TO_CM ** 2
-        # need to multiply with p(E detected above threshold)
-        # threshold given by data releas
+            return integral * M_TO_CM ** 2 * self._time
+            
+        else:
 
-        dN_dt = np.dot(aeff * p_det_above_thr, integrated_flux)
+            selected_bin_index = self._select_single_cos_zenith(source)
 
-        return dN_dt * self._time
+            Em = self.effective_area.true_energy_bins[:-1]
+            EM = self.effective_area.true_energy_bins[1:]
+            # needs to be replaced by an integral
+            # going over reconstructed energy from minimally detected maximally detected
+            # or take the hi_nu shortcut:
+            # calculate integral at bin center, and assume that's fine
+            integrated_flux = source.flux_model.integrated_spectrum(Em, EM)
+            bin_c = (np.log10(Em) + np.log10(EM)) / 2
+            p_det_above_thr = np.ones((bin_c.size))
+            # ignore this for a moment
+            #if self._energy_resolution is not None:
+            #    for c in range(bin_c.size):
+            #        p_det_above_thr[c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c]), source.coord[1])
+
+            aeff = self._selected_aeff.T[selected_bin_index] * M_TO_CM ** 2
+            # need to multiply with p(E detected above threshold)
+            # threshold given by data releas
+
+            dN_dt = np.dot(aeff, integrated_flux)
+
+            return dN_dt * self._time
 
 
     def __call__(self, time=1, min_energy=1e2, max_energy=1e9, min_cosz=-1, max_cosz=1):
@@ -202,7 +216,7 @@ class NeutrinoCalculator:
 
             elif source.source_type == POINT:
 
-                n = self._point_source_calculation(source)
+                n = self._point_source_calculation(source, min_energy, max_energy)
 
             else:
 
