@@ -1098,7 +1098,7 @@ class TimeDependentPointSourceLikelihood:
         else:
             self.times = times
         # self.tirf = TimeDependentIceCube.from_periods(*self._irf_periods)
-        self.aeffs = [EffectiveArea.from_dataset("20210126", p) for p in self._irf_periods]
+        self.aeffs = [EffectiveArea.from_dataset("20210126", p, spline_degree=3) for p in self._irf_periods]
         self.nu_calcs = {}
         self.flux = PowerLawFlux(1e-20, 1e5, 2.5, lower_energy=emin, upper_energy=emax)
         self.source = PointSource(flux_model=self.flux, z=0., coord=self.source_coord)
@@ -1120,11 +1120,11 @@ class TimeDependentPointSourceLikelihood:
             self.nu_calcs[p] = NeutrinoCalculator(
                 [self.source],
                 self.aeffs[c],
-                energy_resolution=energy_llh[p] if create_e_llh else None
+                #energy_resolution=energy_llh[p] if create_e_llh else None
             )
             #create likelihood objects
             
-            bg_llh = DataDrivenBackgroundLikelihood(p)
+            bg_llh = DataDrivenBackgroundLikelihood(p, spline=0)
                 
             self.likelihoods[p] = PointSourceLikelihood(
                 spatial_llh,

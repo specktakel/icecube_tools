@@ -11,7 +11,7 @@ from icecube_tools.utils.data import (
     available_data_periods,
     RealEvents
 )
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 
 """
 Module for working with the public IceCube
@@ -427,6 +427,8 @@ class EffectiveArea(object):
 
         self._spline_smooth = kwargs.get("s", 0)
 
+        self._interp = kwargs.get("interp", False)
+
         self.values = self._reader.effective_area_values.copy()
 
         self.true_energy_bins = self._reader.true_energy_bins
@@ -438,6 +440,10 @@ class EffectiveArea(object):
         if isinstance(self._spline_degree, int):
 
             self._make_spline()
+
+        elif self._interp:
+
+            self._make_interp()
 
     def __call__(self, energy, cosz):
         """
@@ -451,6 +457,10 @@ class EffectiveArea(object):
         if hasattr(self, "_spline"):
 
             return self._spline_call(energy, cosz)
+        
+        elif self._interp:
+
+            return self._interp_call(energy, cosz)
         
         energy_idx = np.digitize(energy, self.true_energy_bins) - 1
 
@@ -469,7 +479,35 @@ class EffectiveArea(object):
     
     def _spline_call(self, energy, cosz):
 
-        return np.power(10, self._spline(np.log10(energy), cosz, grid=False))
+        return self._spline(np.log10(energy), cosz, grid=False)
+    
+    def _make_interp(self):
+
+        logE = np.log10(self.true_energy_bins)
+        E = (logE[:-1] + logE[1:]) / 2
+        c = (self.cos_zenith_bins[:-1] + self.cos_zenith_bins[1:]) / 2
+        vals = self.values.copy()
+        # mask out zero entries with 1e-10, in log -> -10 to avoid -infs
+        # vals[vals==0] = 1e-10
+        self._interpolation = RegularGridInterpolator(
+            (E, c),
+            vals,
+            bounds_error=False,
+            fill_value = 0.,
+            method="cubic",
+        )
+
+    def _interp_call(self, energy, cosz):
+
+        energy = np.log10(energy)
+
+        if isinstance(energy, np.ndarray):
+            args = np.vstack((energy, cosz)).T
+        else:
+            args = np.array([energy, cosz])
+
+        return self._interpolation(args)
+
     
     def _make_spline(self):
 
@@ -480,9 +518,9 @@ class EffectiveArea(object):
         c = (self.cos_zenith_bins[:-1] + self.cos_zenith_bins[1:]) / 2
         vals = self.values.copy()
         # mask out zero entries with 1e-10, in log -> -10 to avoid -infs
-        vals[vals==0] = 1e-10
+        # vals[vals==0] = 1e-10
         self._spline = RectBivariateSpline(
-            E, c, np.log10(vals), kx=degree, ky=degree, s=0
+            E, c, vals, kx=degree, ky=degree, s=0
         )
 
     def get_reader(self, **kwargs):

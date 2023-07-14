@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import fsolve
-from scipy.integrate import quad
+from scipy.integrate import quad, romberg
 
 from .source.source_model import Source, PointSource, DIFFUSE, POINT
 from .source.flux_model import FluxModel, PowerLawFlux
@@ -44,6 +44,8 @@ class NeutrinoCalculator:
         self._effective_area = effective_area
         
         self._energy_resolution = energy_resolution
+
+        self._quad_outputs = []
 
     @property
     def source(self):
@@ -120,15 +122,21 @@ class NeutrinoCalculator:
 
     def _point_source_calculation(self, source, min_energy, max_energy):
 
-        if hasattr(self.effective_area, "_spline"):
-            source_cosz = - np.arcsin(source.coord[1])
+        if hasattr(self.effective_area, "_spline") or self.effective_area._interp:
+            source_cosz = - np.sin(source.coord[1])
 
             def integrand(energy):
-                return source.flux_model.spectrum(energy) * self.effective_area(energy, source_cosz)
+                return source.flux_model.spectrum(energy) * self.effective_area(energy, source_cosz) * M_TO_CM ** 2 * self._time
             
-            integral = quad(integrand, min_energy, max_energy)[0]
+            solve = quad(integrand, min_energy, max_energy)
+            
+            self._quad_outputs.append(solve)
+            integral = solve[0]
 
-            return integral * M_TO_CM ** 2 * self._time
+            return integral
+        
+
+
             
         else:
 
