@@ -70,9 +70,15 @@ class R2021IRF(EnergyResolution, AngularResolution):
         Special class to handle smearing effects given in the 2021 data release.
         """
 
-        if period in R2021IRF.STACK:
-            self.__dict__ = self.STACK[period].__dict__
-        else:
+        try:
+            instance = self.STACK[period]
+            if not kwargs["correction_factor"] and not hasattr(instance, "correction_factor"):
+                # only if no correction factors are used, copy the instance
+                # might be useful to have the option of comparing IRFs with different corrections
+                self.__dict__ = self.STACK[period].__dict__
+            else:
+                raise KeyError
+        except KeyError:
             # self.read(fetch)
             self._filename = filename
             self.ret_ang_err_p = kwargs.get("ret_ang_err_p", 0.68)
@@ -101,6 +107,8 @@ class R2021IRF(EnergyResolution, AngularResolution):
             self.declination_bins.sort()
 
             self.faulty = []
+
+            self.correction_factor = kwargs.pop("correction_factor", {})
 
             for c_d, (d_l, d_h) in enumerate(
                 zip(self.declination_bins[:-1], self.declination_bins[1:])
@@ -141,11 +149,17 @@ class R2021IRF(EnergyResolution, AngularResolution):
             for c_e, e in enumerate(self.true_energy_bins[:-1]):
                 for c_d, d in enumerate(self.declination_bins[:-1]):
                     if not (c_e, c_d) in self.faulty:
+                        try:
+                            # NB different order of indices
+                            corr = self.correction_factor[c_d][c_e]
+                            shift = lambda x: corr["a"] * x + corr["b"]
+                        except:
+                            shift = lambda x: x
                         n, bins = self._marginalisation(c_e, c_d)
                         self.reco_energy[c_e, c_d] = rv_histogram(
-                            (n, bins), density=False
+                            (n, shift(bins)), density=False
                         )
-                        self.reco_energy_bins[c_e, c_d] = bins
+                        self.reco_energy_bins[c_e, c_d] = shift(bins)
 
                     else:
                         # workaround for true energy bins completely empty
