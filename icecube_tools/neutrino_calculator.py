@@ -190,17 +190,17 @@ class NeutrinoCalculator:
 
         # @TODO: Add contribution from bins on boundary.
         self._selected_effective_area_values[
-            self.effective_area.true_energy_bins[1:] < min_energy
+            self.effective_area.true_energy_bins[1:] <= min_energy
         ] = 0
         self._selected_effective_area_values[
-            self.effective_area.true_energy_bins[:-1] > max_energy
+            self.effective_area.true_energy_bins[:-1] >= max_energy
         ] = 0
 
         self._selected_effective_area_values.T[
-            self.effective_area.cos_zenith_bins[1:] < min_cosz
+            self.effective_area.cos_zenith_bins[1:] <= min_cosz
         ] = 0
         self._selected_effective_area_values.T[
-            self.effective_area.cos_zenith_bins[:-1] > max_cosz
+            self.effective_area.cos_zenith_bins[:-1] >= max_cosz
         ] = 0
 
         N = []
@@ -212,10 +212,10 @@ class NeutrinoCalculator:
 
             self._selected_aeff = self._selected_effective_area_values.copy()
             self._selected_aeff[
-                self.effective_area.true_energy_bins[1:] < src_min_energy
+                self.effective_area.true_energy_bins[1:] <= src_min_energy
             ] = 0
             self._selected_aeff[
-                self.effective_area.true_energy_bins[:-1] > src_max_energy
+                self.effective_area.true_energy_bins[:-1] >= src_max_energy
             ] = 0
 
             if source.source_type == DIFFUSE:
