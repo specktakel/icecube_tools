@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from .power_law import BoundedPowerLaw
 from .power_law import BrokenBoundedPowerLaw
 from .power_law import BoundedPowerLawExpCutoff
+from .power_law import BoundedPowerLawSubexpCutoff
 
 """
 Module for simple flux models used in 
@@ -247,7 +248,7 @@ class BrokenPowerLawFlux(FluxModel):
             norm = self._normalisation
             nans = np.nonzero(((energy < self._lower_energy) | (energy > self._upper_energy)))
 
-            output = norm = self._normalisation
+            output = np.zeros_like(energy)
 
             below = np.nonzero((energy < self._break_energy))
             output[below] = norm * np.power(energy[below] / self._break_energy, self._index1)
@@ -292,57 +293,75 @@ class BrokenPowerLawFlux(FluxModel):
         :param lower_energy_bound: [GeV]
         :param upper_energy_bound: [GeV]
         """
+        if isinstance(lower_energy_bound, np.ndarray) and isinstance(upper_energy_bound, np.ndarray):
+            norm = self._normalisation
+            E_break = self._break_energy
+            g1 = self._index1
+            g2 = self._index2
 
-        norm = self._normalisation
+            val = np.zeros_like(lower_energy_bound)
 
-        if (lower_energy_bound < self._break_energy) and (
-            upper_energy_bound <= self._break_energy
-        ):
+            idx1 = np.logical_and(lower_energy_bound < E_break, upper_energy_bound <= E_break)
+            idx2 = np.logical_and(lower_energy_bound < E_break, upper_energy_bound > E_break)
+            idx3 = np.logical_and(lower_energy_bound >= E_break, upper_energy_bound > E_break)
 
-            # Integrate over lower segment
-            output = (
-                norm
-                * (
-                    np.power(upper_energy_bound, self._index1 + 1.0)
-                    - np.power(lower_energy_bound, self._index1 + 1.0)
+            val[idx1] = norm * (np.power(upper_energy_bound[idx1], g1 + 1.0) - np.power(lower_energy_bound[idx1], g1 + 1.0))/ ((g1 + 1.0) * np.power(E_break, g1))
+            val[idx2] = norm * ((np.power(E_break, g1 + 1.0) - np.power(lower_energy_bound[idx2], g1 + 1.0)) / ((g1 + 1.0) * np.power(E_break, g1)) + (np.power(upper_energy_bound[idx2], g2 + 1.0) - np.power(E_break, g2 + 1.0)) / ((g2 + 1.0) * np.power(E_break, g2)))
+            val[idx3] = norm * (np.power(upper_energy_bound[idx3], g2 + 1.0) - np.power(lower_energy_bound[idx3], g2 + 1.0)) / ((g2 + 1.0) * np.power(E_break, g2))
+
+            return val
+
+        else:
+            norm = self._normalisation
+
+            if (lower_energy_bound < self._break_energy) and (
+                upper_energy_bound <= self._break_energy
+            ):
+
+                # Integrate over lower segment
+                output = (
+                    norm
+                    * (
+                        np.power(upper_energy_bound, self._index1 + 1.0)
+                        - np.power(lower_energy_bound, self._index1 + 1.0)
+                    )
+                    / ((self._index1 + 1.0) * np.power(self._break_energy, self._index1))
                 )
-                / ((self._index1 + 1.0) * np.power(self._break_energy, self._index1))
-            )
 
-        elif (lower_energy_bound < self._break_energy) and (
-            upper_energy_bound > self._break_energy
-        ):
+            elif (lower_energy_bound < self._break_energy) and (
+                upper_energy_bound > self._break_energy
+            ):
 
-            # Integrate across break
-            lower = (
-                np.power(self._break_energy, self._index1 + 1.0)
-                - np.power(lower_energy_bound, self._index1 + 1.0)
-            ) / ((self._index1 + 1.0) * np.power(self._break_energy, self._index1))
+                # Integrate across break
+                lower = (
+                    np.power(self._break_energy, self._index1 + 1.0)
+                    - np.power(lower_energy_bound, self._index1 + 1.0)
+                ) / ((self._index1 + 1.0) * np.power(self._break_energy, self._index1))
 
-            upper = (
-                np.power(upper_energy_bound, self._index2 + 1.0)
-                - np.power(self._break_energy, self._index2 + 1.0)
-            ) / ((self._index2 + 1.0) * np.power(self._break_energy, self._index2))
+                upper = (
+                    np.power(upper_energy_bound, self._index2 + 1.0)
+                    - np.power(self._break_energy, self._index2 + 1.0)
+                ) / ((self._index2 + 1.0) * np.power(self._break_energy, self._index2))
 
-            output = norm * (lower + upper)
+                output = norm * (lower + upper)
 
-        elif (lower_energy_bound >= self._break_energy) and (
-            upper_energy_bound > self._break_energy
-        ):
+            elif (lower_energy_bound >= self._break_energy) and (
+                upper_energy_bound > self._break_energy
+            ):
 
-            # Integrate over upper segment
-            upper = (
-                np.power(upper_energy_bound, self._index2 + 1.0)
-                - np.power(lower_energy_bound, self._index2 + 1.0)
-            ) / ((self._index2 + 1.0) * np.power(self._break_energy, self._index2))
+                # Integrate over upper segment
+                upper = (
+                    np.power(upper_energy_bound, self._index2 + 1.0)
+                    - np.power(lower_energy_bound, self._index2 + 1.0)
+                ) / ((self._index2 + 1.0) * np.power(self._break_energy, self._index2))
 
-            output = norm * upper
+                output = norm * upper
 
-        return output
+            return output
+        
 
     def redshift_factor(self, z: float):
-
-        raise NotImplementedError()
+        return 1.0
 
     def sample(self, N):
         """
@@ -459,3 +478,91 @@ class PowerLawExpCutoffFlux(FluxModel):
         :param N: Number of samples.
         """
         return self.power_law.samples(N)
+    
+
+class PowerLawSubexpCutoffFlux(FluxModel):
+    """
+    Power law flux models with a subexponential cutoff.
+    """
+
+    def __init__(
+            self,
+            normalisation,
+            norm_energy,
+            index1,
+            cutoff_energy,
+            index2,
+            lower_energy=1e2,
+            upper_energy=1e8
+    ):
+        """
+        Power law flux models with a subexponential cutoff.
+
+        :param normalisation: Flux normalisation [GeV^-1 cm^-2 s^-1 sr^-1] or [GeV^-1 cm^-2 s^-1] for point sources.
+        :param norm_energy: Energy at which the spectrum is normalised [GeV].
+        :param index1: Spectral index of the power law.
+        :param cutoff_energy: Cutoff energy [GeV].
+        :param index2: Spectral index in the exponential function. 0 < index2 < 1.
+        :param lower_energy: Lower energy bound [GeV].
+        :param upper_energy: Upper energy bound [GeV].
+        """
+
+        super().__init__()
+
+        self._normalisation = normalisation
+
+        self._norm_energy = norm_energy
+
+        self._index1 = index1
+
+        self._cutoff_energy = cutoff_energy
+
+        self._index2 = index2
+
+        self._lower_energy = lower_energy
+
+        self._upper_energy = upper_energy
+
+        self.power_law = BoundedPowerLawSubexpCutoff(self._index1, self._cutoff_energy, self._index2, self._lower_energy, self._upper_energy)
+
+    def spectrum(self, energy):
+        """
+        dN/dEdAdt or dN/dEdAdtdO.
+        """
+        output = self._normalisation * (energy/self._norm_energy)**(-self._index1) * np.exp(-1 * (energy/self._cutoff_energy)**self._index2)
+
+        if isinstance(energy, np.ndarray):
+            idx = np.logical_or(energy < self._lower_energy, energy > self._upper_energy)
+            output[idx] = np.zeros(len(output[idx]))
+            return output
+        
+        else:
+            if energy < self._lower_energy or energy > self._upper_energy:
+                return 0.0
+            else:
+                return output
+            
+    def integrated_spectrum(self, lower_energy_bound, upper_energy_bound):
+        """
+        Integrates the spectrum with respect to E over a finite energy interval.
+        :param lower_energy_bound: in GeV
+        :param upper_energy_bound: in GeV
+        """
+        norm = self._normalisation
+        E0 = self._norm_energy
+        Ecut = self._cutoff_energy
+        gamma = self._index1
+        lambda_ = self._index2
+
+        E1 = lower_energy_bound
+        E2 = upper_energy_bound
+        incGamma = np.frompyfunc(mp.gammainc, 3, 1)
+
+        if isinstance(lower_energy_bound, np.ndarray) or isinstance(upper_energy_bound, np.ndarray):
+            return norm/E0**(-gamma) * Ecut**(1-gamma)/lambda_ * incGamma((1-gamma)/lambda_, (E1/Ecut)**lambda_, (E2/Ecut)**lambda_).astype('float64')
+        
+        else:
+            return norm/E0**(-gamma) * Ecut**(1-gamma)/lambda_ * float(incGamma((1-gamma)/lambda_, (E1/Ecut)**lambda_, (E2/Ecut)**lambda_))
+        
+    def redshift_factor(self, z: float):
+        return 1.0

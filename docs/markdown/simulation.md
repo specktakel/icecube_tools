@@ -227,7 +227,7 @@ If the end time is past the last period (IC86_II), then we get an according mess
 We can of course bypass this time setting and operate directly on the instances of Simulator, for example if we'd want to build up large statistics for subsequent likelihood analysis.
 
 ```python
-times = uptime.find_obs_time(start=55569, duration=3)
+times = uptime.find_obs_time(start=55869, duration=3)
 times
 ```
 

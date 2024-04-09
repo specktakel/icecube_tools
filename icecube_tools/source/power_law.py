@@ -248,7 +248,7 @@ class BoundedPowerLawExpCutoff:
             if x < self.xmin:
                 return 0.0
             elif x > self.xmax:
-                return 0.0
+                return 1.0
             else:
                 return val
 
@@ -278,3 +278,73 @@ class BoundedPowerLawExpCutoff:
         """
         u = np.random.uniform(0, 1, size=nsamples)
         return self.inv_cdf(u)
+
+
+class BoundedPowerLawSubexpCutoff:
+    """
+    Definition of a bounded power law with a subexponential cutoff.
+    """
+
+    def __init__(self, gamma, xcut, lambda_, xmin, xmax):
+        """
+        Definition of a bounded power law with a subexponential cutoff.
+        """
+        self.gamma = gamma
+        self.xcut = xcut
+        self.lambda_ = lambda_
+        self.xmin = xmin
+        self.xmax = xmax
+
+        # Calculate the normalisation.
+        self.norm = 1. / float(
+            self.xcut ** (1 - self.gamma) / self.lambda_ 
+            * mp.gammainc((1 - self.gamma) / self.lambda_, 
+                          (self.xmin / self.xcut) ** self.lambda_, 
+                          (self.xmax/self.xcut) ** self.lambda_))
+        
+    def pdf(self, x):
+        """
+        Evaluates the probability density function at x.
+        """
+        val = self.norm * x ** (-self.gamma) * np.exp(-1 * (x / self.xcut) ** self.lambda_)
+
+        if not isinstance(x, np.ndarray):
+            if x < self.xmin or x > self.xmax:
+                return 0.0
+            else:
+                return val
+            
+        else:
+            idx = np.logical_or(x < self.xmin, x > self.xmax)
+            val[idx] = np.zeros(len(val[idx]))
+            return val
+        
+    def cdf(self, x):
+        """
+        Evaluated the cumulative distribution function at x.
+        """
+        incGamma = np.frompyfunc(mp.gammainc, 3, 1)
+        val = self.norm * self.xcut ** (1 - self.gamma) / self.lambda_ * incGamma((1 - self.gamma) / self.lambda_, 
+                                                                                  (self.xmin / self.xcut) ** self.lambda_, 
+                                                                                  (x / self.xcut) ** self.lambda_).astype('float64')
+        
+        if not isinstance(x, np.ndarray):
+            if x < self.xmin:
+                return 0.0
+            elif x > self.xmax:
+                return 1.0
+            else: 
+                return val
+            
+        else:
+            idx = x < self.xmin
+            val[idx] = np.zeros(len(val[idx]))
+            idx = x > self.xmax
+            val[idx] = np.ones(len(val[idx]))
+            return val
+        
+    def inv_cdf(self, x):
+        raise NotImplementedError
+    
+    def samples(self, nsamples):
+        raise NotImplementedError

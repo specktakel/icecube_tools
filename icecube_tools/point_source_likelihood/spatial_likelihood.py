@@ -32,6 +32,7 @@ class SpatialLikelihood(ABC):
         pass
 
 
+<<<<<<< HEAD
 class RayleighDistribution(SpatialLikelihood):
     """
     If you transform a 2d Gauss from cartesian to polar coordinates,
@@ -74,14 +75,16 @@ class RayleighDistribution(SpatialLikelihood):
         return r / (2 * np.pi * np.sin(r) * np.power(sigma_rad, 2)) * np.exp(-np.power(r, 2) / (2 * np.power(sigma_rad, 2)))
 
 
+=======
+>>>>>>> master
 class EventDependentSpatialGaussianLikelihood(SpatialLikelihood):
     def __init__(self, sigma=2):
         """
         :param sigma: Upper limit of angular distance to considered events
         """
-        #TODO actually implement this somehow
-        #convert p to sigma if necessary...
-        #omit for now
+        # TODO actually implement this somehow
+        # convert p to sigma if necessary...
+        # omit for now
         self._sigma = sigma
 
     # @profile
@@ -90,10 +93,10 @@ class EventDependentSpatialGaussianLikelihood(SpatialLikelihood):
         ang_err: np.ndarray,
         ra: np.ndarray,
         dec: np.ndarray,
-        source_coord: Tuple[float, float]
+        source_coord: Tuple[float, float],
     ):
         """
-        Use the neutrino energy to determine sigma and 
+        Use the neutrino energy to determine sigma and
         evaluate the likelihood.
 
         P(x_i | x_s) = (1 / (2pi * sigma^2)) * exp( |x_i - x_s|^2/ (2*sigma^2) )
@@ -108,7 +111,7 @@ class EventDependentSpatialGaussianLikelihood(SpatialLikelihood):
 
         src_ra, src_dec = source_coord
 
-        norm = 0.5 / (np.pi * sigma_rad ** 2)
+        norm = 0.5 / (np.pi * sigma_rad**2)
 
         # Calculate the cosine of the distance of the source and the event on
         # the sphere.
@@ -126,7 +129,7 @@ class EventDependentSpatialGaussianLikelihood(SpatialLikelihood):
 
         dist = np.exp(-0.5 * (r / sigma_rad) ** 2)
 
-        return norm * dist
+        return r / np.sin(r) * norm * dist
 
 
 class DataDrivenBackgroundSpatialLikelihood(SpatialLikelihood):
@@ -143,9 +146,12 @@ class DataDrivenBackgroundSpatialLikelihood(SpatialLikelihood):
         cosz_bins = aeff.cos_zenith_bins
         self._sin_dec_bins = np.sort(-cosz_bins)
         self._dec_bins = np.arcsin(self._sin_dec_bins)
-        self.hist = np.histogram(np.sin(self._events.dec[self._period]),  bins=self._sin_dec_bins, density=True)
+        self.hist = np.histogram(
+            np.sin(self._events.dec[self._period]),
+            bins=self._sin_dec_bins,
+            density=True,
+        )
         self.likelihood = rv_histogram(self.hist, density=True)
-
 
     def __call__(self, dec: np.ndarray):
         """
@@ -153,7 +159,6 @@ class DataDrivenBackgroundSpatialLikelihood(SpatialLikelihood):
         """
 
         return self.likelihood.pdf(np.sin(dec)) / (2 * np.pi)
-
 
 
 class SpatialGaussianLikelihood(SpatialLikelihood):
@@ -166,20 +171,19 @@ class SpatialGaussianLikelihood(SpatialLikelihood):
     def __init__(self, angular_resolution):
         """
         Spatial part of the point source likelihood.
-        
+
         P(x_i | x_s) where x is the direction (unit_vector).
-        
-        :param angular_resolution; Angular resolution of detector [deg]. 
+
+        :param angular_resolution; Angular resolution of detector [deg].
         """
 
         # @TODO: Init with some sigma as a function of E?
 
         self._sigma = angular_resolution
 
-   
     def __call__(self, ra, dec, source_coord):
         """
-        Use the neutrino energy to determine sigma and 
+        Use the neutrino energy to determine sigma and
         evaluate the likelihood.
 
         P(x_i | x_s) = (1 / (2pi * sigma^2)) * exp( |x_i - x_s|^2/ (2*sigma^2) )
@@ -192,7 +196,7 @@ class SpatialGaussianLikelihood(SpatialLikelihood):
 
         src_ra, src_dec = source_coord
 
-        norm = 0.5 / (np.pi * sigma_rad ** 2)
+        norm = 0.5 / (np.pi * sigma_rad**2)
 
         # Calculate the cosine of the distance of the source and the event on
         # the sphere.
@@ -213,26 +217,25 @@ class SpatialGaussianLikelihood(SpatialLikelihood):
         return norm * dist
 
 
-
 class EnergyDependentSpatialGaussianLikelihood(SpatialLikelihood):
     """
-    Energy dependent spatial likelihood. Uses AngularResolution 
-    specified for given spectral indicies. For example in the 2015 
+    Energy dependent spatial likelihood. Uses AngularResolution
+    specified for given spectral indicies. For example in the 2015
     data release angular resolution plots.
-    
+
     The atmospheric spectrum is approximated as a power law
     with a single spectral index.
     """
 
     def __init__(self, angular_resolution_list, index_list):
         """
-        Energy dependent spatial likelihood. Uses AngularResolution 
-        specified for given spectral indicies. For example in the 2015 
+        Energy dependent spatial likelihood. Uses AngularResolution
+        specified for given spectral indicies. For example in the 2015
         data release angular resolution plots.
-        
+
         The atmospheric spectrum is approximated as a power law
         with a single spectral index.
-        
+
         :param angular_resolution_list: List of AngularResolution instances.
         :param index_list: List of corresponding spectral indices
         """
@@ -243,7 +246,7 @@ class EnergyDependentSpatialGaussianLikelihood(SpatialLikelihood):
 
     def _get_sigma(self, reco_energy, index):
         """
-        Return the expected angular resolution for a 
+        Return the expected angular resolution for a
         given reconstrcuted energy and spectral index.
 
         :param reco_energy: Reconstructed energy [GeV]
@@ -261,7 +264,7 @@ class EnergyDependentSpatialGaussianLikelihood(SpatialLikelihood):
 
     def get_low_res(self):
         """
-        Representative lower resolution 
+        Representative lower resolution
         at fixed low energy and bg index.
 
         To be used in PointSourceLikelihood.
@@ -288,7 +291,7 @@ class EnergyDependentSpatialGaussianLikelihood(SpatialLikelihood):
 
             sigma_rad = np.deg2rad(self._get_sigma(e, index))
 
-            norm = 0.5 / (np.pi * sigma_rad ** 2)
+            norm = 0.5 / (np.pi * sigma_rad**2)
 
             # Calculate the cosine of the distance of the source and the event on
             # the sphere.

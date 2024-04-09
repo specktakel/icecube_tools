@@ -9,7 +9,7 @@ from icecube_tools.utils.data import (
     data_directory,
     available_irf_periods,
     available_data_periods,
-    RealEvents
+    RealEvents,
 )
 from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 
@@ -25,7 +25,6 @@ BRAUN2008_AEFF_FILENAME = "AeffBraun2008.csv"
 R2021_AEFF_FILENAME = "effectiveArea.csv"
 
 _supported_dataset_ids = ["20131121", "20150820", "20181018", "20210126"]
-
 
 
 class IceCubeAeffReader(ABC):
@@ -211,7 +210,6 @@ class R2015AeffReader(IceCubeAeffReader):
         self.effective_area_values *= self.scale_factor
 
 
-
 class R2021AeffReader(IceCubeAeffReader):
     """
     Reader for the 2021 January 26 release.
@@ -241,19 +239,18 @@ class R2021AeffReader(IceCubeAeffReader):
 
         super().__init__(filename)
 
-
     def read(self):
 
         import pandas as pd
         from .r2021 import EMAX
 
-        self.nu_type = "nu_mu"    # all entries valid for muons
+        self.nu_type = "nu_mu"  # all entries valid for muons
 
         filelayout = ["Emin", "Emax", "DECmin", "DECmax", "Aeff"]
         # Aeff values are given in cm^2, multiply by 1e-4 to get m^2
 
         output = pd.read_csv(
-            self._filename, comment="#", delim_whitespace=True, names=filelayout
+            self._filename, comment="#", sep="\s+", names=filelayout
         ).to_dict()
 
         true_energy_lower = set(output["Emin"].values())
@@ -270,61 +267,88 @@ class R2021AeffReader(IceCubeAeffReader):
 
         dec_bins = np.radians(np.array(list(dec_upper.union(dec_lower))))
         dec_bins.sort()
-        self.cos_zenith_bins = np.cos(dec_bins + np.pi / 2 )    # convert DEC to z and take cosine
-        self.cos_zenith_bins.sort()    # sort to conform to existing data format
+        self.cos_zenith_bins = np.cos(
+            dec_bins + np.pi / 2
+        )  # convert DEC to z and take cosine
+        self.cos_zenith_bins.sort()  # sort to conform to existing data format
 
         self.effective_area_values = np.reshape(
             np.array(list(output["Aeff"].values())) * 1e-4,
             (len(dec_lower), len(true_energy_lower)),
         ).T
-        self.effective_area_values = np.flip(self.effective_area_values, axis=1)    # flip due to sort, see above
+        self.effective_area_values = np.flip(
+            self.effective_area_values, axis=1
+        )  # flip due to sort, see above
 
         self.effective_area_values *= self.scale_factor
 
         # Need to mask out certain effective area values because there is no IRF defined for some
-        true_energy_bins = np.power(10, np.arange(2., 9.1, 0.5))
-        declination_bins = np.deg2rad(np.array([-90., -10., 10., 90.]))
-        
+        true_energy_bins = np.power(10, np.arange(2.0, 9.1, 0.5))
+        declination_bins = np.deg2rad(np.array([-90.0, -10.0, 10.0, 90.0]))
+
         mask = np.ones_like(self.effective_area_values)
         # Hardcoding this because I took long way too long trying to do it properly
         # Faulty IRF bins (etrue, dec) taken from the IRF class,
         # hardcoded because I couldn't resolve circular imports
         # Only take those bins where there is conflict to save some time upon loading
         faulty = {
-            "IC40": [(-1, 0), (-1, 1), (-1, 2)],   # aeff extends to higher energies than IRF
+            "IC40": [
+                (-1, 0),
+                (-1, 1),
+                (-1, 2),
+            ],  # aeff extends to higher energies than IRF
             "IC59": [(2, 0)],
         }
         self.mask = mask
         for period in faulty.keys():
-            if period+"_" in os.path.basename(self._filename):
- 
+            if period + "_" in os.path.basename(self._filename):
 
-                #print(period)
-                for (etrue, dec) in faulty[period]:
-                    #print(etrue, dec)
+                # print(period)
+                for etrue, dec in faulty[period]:
+                    # print(etrue, dec)
                     if etrue != -1:
-                        etrue_min, etrue_max = true_energy_bins[etrue], true_energy_bins[etrue+1]
-                        aeff_etrue_min = np.digitize(etrue_min, self.true_energy_bins) - 1
-                        aeff_etrue_max = np.digitize(etrue_max, self.true_energy_bins) - 1
-                        aeff_etrue_max += 1 if self.true_energy_bins[aeff_etrue_max] < true_energy_bins[etrue+1] else 0
+                        etrue_min, etrue_max = (
+                            true_energy_bins[etrue],
+                            true_energy_bins[etrue + 1],
+                        )
+                        aeff_etrue_min = (
+                            np.digitize(etrue_min, self.true_energy_bins) - 1
+                        )
+                        aeff_etrue_max = (
+                            np.digitize(etrue_max, self.true_energy_bins) - 1
+                        )
+                        aeff_etrue_max += (
+                            1
+                            if self.true_energy_bins[aeff_etrue_max]
+                            < true_energy_bins[etrue + 1]
+                            else 0
+                        )
                     else:
                         etrue_min = true_energy_bins[-1]
-                        aeff_etrue_min = np.digitize(etrue_min, self.true_energy_bins) - 1
+                        aeff_etrue_min = (
+                            np.digitize(etrue_min, self.true_energy_bins) - 1
+                        )
                         aeff_etrue_max = self.true_energy_bins.size - 1
-                    cosz_max, cosz_min = -np.sin(declination_bins[dec]), -np.sin(declination_bins[dec+1])
+                    cosz_max, cosz_min = -np.sin(declination_bins[dec]), -np.sin(
+                        declination_bins[dec + 1]
+                    )
 
                     aeff_cosz_min = np.digitize(cosz_min, self.cos_zenith_bins) - 1
                     aeff_cosz_max = np.digitize(cosz_max, self.cos_zenith_bins) - 1
-                    for (e, c) in product(range(aeff_etrue_min, aeff_etrue_max), range(aeff_cosz_min, aeff_cosz_max)):
-                        #print(e, c)
-                        self.mask[e, c] = 0.
-                self.effective_area_values = np.multiply(self.effective_area_values, mask)
+                    for e, c in product(
+                        range(aeff_etrue_min, aeff_etrue_max),
+                        range(aeff_cosz_min, aeff_cosz_max),
+                    ):
+                        # print(e, c)
+                        self.mask[e, c] = 0.0
+                self.effective_area_values = np.multiply(
+                    self.effective_area_values, mask
+                )
                 break
         # Mask all entries which are beyond the IRF defined energy (relevant only beyond 1e9GeV)
         idx = np.digitize(EMAX, self.true_energy_bins) - 1
         self.effective_area_values = self.effective_area_values[:idx, :]
-        self.true_energy_bins = self.true_energy_bins[:idx+1]
-        
+        self.true_energy_bins = self.true_energy_bins[: idx + 1]
 
 
 class R2018AeffReader(IceCubeAeffReader):
@@ -546,7 +570,7 @@ class EffectiveArea(object):
 
         elif R2021_AEFF_FILENAME in self._filename:
 
-             return R2021AeffReader(self._filename, **kwargs)
+            return R2021AeffReader(self._filename, **kwargs)
 
         else:
 
@@ -581,14 +605,14 @@ class EffectiveArea(object):
         a given true energy and arrival direction.
         """
 
-        #make copy of data array
+        # make copy of data array
         scaled_values = self.values.copy()
-        #get lower edges of each bin, set prob to zero for all bins above inputted max energy
+        # get lower edges of each bin, set prob to zero for all bins above inputted max energy
         lower_bin_edges = self.true_energy_bins[:-1]
         scaled_values[lower_bin_edges > max_energy] = 0
-        #scale to max value: Aeff -> relative detection prob
+        # scale to max value: Aeff -> relative detection prob
         scaled_values = scaled_values / np.max(scaled_values)
-        #find appropriate bin of inputted energies
+        # find appropriate bin of inputted energies
         energy_index = np.digitize(true_energy, self.true_energy_bins) - 1
 
         # Guard against overflow
@@ -685,4 +709,3 @@ class EffectiveArea(object):
                     aeff_file_name = f
                     break
         return cls(aeff_file_name, period=period, **kwargs)
-

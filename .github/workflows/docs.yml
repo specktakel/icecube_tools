@@ -27,14 +27,14 @@ jobs:
         jupytext --to ipynb --pipe black --execute docs/markdown/point_source_analysis.md
         jupytext --to ipynb --pipe black --execute docs/markdown/events.md
         mv docs/markdown/*.ipynb docs/notebooks
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       with:
         name: notebooks-for-${{ github.sha }}
         path: docs/notebooks
     - name: Generate API docs
       run: |
         sphinx-apidoc -f -e -o docs/api icecube_tools
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       with:
         name: api-for-${{ github.sha }}
         path: docs/api
@@ -57,11 +57,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install .
-    - uses: actions/download-artifact@master
+    - uses: actions/download-artifact@v4
       with:
         name: notebooks-for-${{ github.sha }}
         path: docs/notebooks
-    - uses: actions/download-artifact@master
+    - uses: actions/download-artifact@v4
       with:
         name: api-for-${{ github.sha }}
         path: docs/api
