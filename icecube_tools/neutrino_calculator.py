@@ -1,13 +1,16 @@
 import numpy as np
 from scipy.optimize import fsolve
 from scipy.integrate import quad, romberg
+from scipy.interpolate import RectBivariateSpline
 
 from .source.source_model import Source, PointSource, DIFFUSE, POINT
 from .source.flux_model import FluxModel, PowerLawFlux
 from .detector.effective_area import EffectiveArea
 from .detector.detector import TimeDependentIceCube
 from .cosmology import luminosity_distance, Mpc_to_cm
-from .point_source_likelihood.energy_likelihood import MarginalisedIntegratedEnergyLikelihood
+from .point_source_likelihood.energy_likelihood import (
+    MarginalisedIntegratedEnergyLikelihood,
+)
 from .utils.data import Uptime
 
 """
@@ -30,7 +33,7 @@ class NeutrinoCalculator:
         self,
         sources,
         effective_area,
-        energy_resolution: MarginalisedIntegratedEnergyLikelihood=None
+        energy_resolution: MarginalisedIntegratedEnergyLikelihood = None,
     ):
         """
         Calculate the expected number of detected neutrinos.
@@ -42,8 +45,10 @@ class NeutrinoCalculator:
         self._sources = sources
 
         self._effective_area = effective_area
-        
+
         self._energy_resolution = energy_resolution
+
+        self.calculate_on_grid(np.linspace(1.0, 4.5, 50))
 
         self._quad_outputs = []
 
@@ -101,10 +106,16 @@ class NeutrinoCalculator:
         if self._energy_resolution is not None:
             for c_e in range(bin_c.size):
                 for c_c in range(czm.size):
-                    p_det_above_thr[c_e, c_c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c_e]), dec_c[c_c])
+                    p_det_above_thr[c_e, c_c] = (
+                        self._energy_resolution.p_det_above_threshold(
+                            np.power(10, bin_c[c_e]), dec_c[c_c]
+                        )
+                    )
 
-        aeff = self._selected_aeff * M_TO_CM ** 2   # 1st index is energy, 2nd is cosz
-        dN_dt = integrated_spectrum.dot(aeff * p_det_above_thr).dot(integrated_direction)
+        aeff = self._selected_aeff * M_TO_CM**2  # 1st index is energy, 2nd is cosz
+        dN_dt = integrated_spectrum.dot(aeff * p_det_above_thr).dot(
+            integrated_direction
+        )
 
         return dN_dt * self._time * source.redshift_factor
 
@@ -119,25 +130,26 @@ class NeutrinoCalculator:
 
         return selected_bin_index
 
-
     def _point_source_calculation(self, source, min_energy, max_energy):
-
+        """
         if hasattr(self.effective_area, "_spline") or self.effective_area._interp:
-            source_cosz = - np.sin(source.coord[1])
+            source_cosz = -np.sin(source.coord[1])
 
             def integrand(energy):
-                return source.flux_model.spectrum(energy) * self.effective_area(energy, source_cosz) * M_TO_CM ** 2 * self._time
-            
+                return (
+                    source.flux_model.spectrum(energy)
+                    * self.effective_area(energy, source_cosz)
+                    * M_TO_CM**2
+                    * self._time
+                )
+
             solve = quad(integrand, min_energy, max_energy)
-            
+
             self._quad_outputs.append(solve)
             integral = solve[0]
 
             return integral
-        
 
-
-            
         else:
 
             selected_bin_index = self._select_single_cos_zenith(source)
@@ -152,18 +164,56 @@ class NeutrinoCalculator:
             bin_c = (np.log10(Em) + np.log10(EM)) / 2
             p_det_above_thr = np.ones((bin_c.size))
             # ignore this for a moment
-            #if self._energy_resolution is not None:
+            # if self._energy_resolution is not None:
             #    for c in range(bin_c.size):
             #        p_det_above_thr[c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c]), source.coord[1])
 
-            aeff = self._selected_aeff.T[selected_bin_index] * M_TO_CM ** 2
+            aeff = self._selected_aeff.T[selected_bin_index] * M_TO_CM**2
             # need to multiply with p(E detected above threshold)
             # threshold given by data releas
 
             dN_dt = np.dot(aeff, integrated_flux)
 
             return dN_dt * self._time
+        """
+        dec = source.coord[1]
+        sin_dec = np.sin(dec)
+        index = source.flux_model._index
+        return (
+            np.exp(self._spline(sin_dec, index, grid=False))
+            * self._time
+            * M_TO_CM**2
+            * source.flux_model._normalisation
+            / 1e-10
+        )
 
+    def calculate_on_grid(self, index_grid):
+        # Takes sindec grid from effective area
+        # Only consider point sources
+        index_grid = np.atleast_1d(index_grid)
+        sin_dec_bins = np.sort(-self.effective_area.cos_zenith_bins)
+        aeff_vals = np.flip(self.effective_area.values, axis=1)
+        sin_dec_centers = sin_dec_bins[:-1] + np.diff(sin_dec_bins) / 2
+        etrue_bins = self.effective_area.true_energy_bins
+
+        flux_model = PowerLawFlux(1e-10, 1e5, 2.0, 1e2, 1e9)
+        integral = np.zeros((sin_dec_centers.size, index_grid.size))
+        # Calculate fluxes over energy bins of effective area
+        # integrated_fluxes = np.zeros((index_grid.size, etrue_bins.size - 1))
+        for c, index in enumerate(index_grid):
+            flux_model._index = index
+            integrated_fluxes = flux_model.integrated_spectrum(
+                etrue_bins[:-1], etrue_bins[1:]
+            )
+
+            integral[:, c] = np.sum(
+                aeff_vals * integrated_fluxes[:, np.newaxis], axis=0
+            )
+        self._integral = integral
+        spline = RectBivariateSpline(
+            sin_dec_centers, index_grid, np.log(integral), kx=2, ky=2
+        )
+        self._spline = spline
 
     def __call__(self, time=1, min_energy=1e2, max_energy=1e9, min_cosz=-1, max_cosz=1):
         """
@@ -251,7 +301,7 @@ class PhiSolver:
         time=1,
         min_cosz=-1.0,
         max_cosz=1.0,
-        energy_resolution: MarginalisedIntegratedEnergyLikelihood=None
+        energy_resolution: MarginalisedIntegratedEnergyLikelihood = None,
     ):
         """
         :param effective_area: An EffectiveArea instance
@@ -292,7 +342,9 @@ class PhiSolver:
         )
         source = PointSource(flux_model=power_law, coord=(np.pi, np.deg2rad(dec)))
         if hasattr(self, "_energy_resolution"):
-            nu_calc = NeutrinoCalculator([source], self._effective_area, self._energy_resolution)
+            nu_calc = NeutrinoCalculator(
+                [source], self._effective_area, self._energy_resolution
+            )
         else:
             nu_calc = NeutrinoCalculator([source], self._effective_area)
         return (
@@ -316,9 +368,9 @@ class PhiSolver:
         phi_norm = fsolve(self._solve_for_phi, x0=guess, args=(Nnu, dec, index))[0]
 
         return phi_norm
-    
 
-class TimeDependentPhiSolver():
+
+class TimeDependentPhiSolver:
     def __init__(self, *data_periods, sources=[], eres_dict={}):
         self._uptime = Uptime(data_periods)
         self._tirf = TimeDependentIceCube.from_periods(self._uptime.irf_periods)
@@ -328,13 +380,9 @@ class TimeDependentPhiSolver():
                 self._tirf[p].effective_area,
                 self._uptime.cumulative_time_obs()[p],
                 eres_dict.get(
-                    p, MarginalisedIntegratedEnergyLikelihood(
-                        p,
-                        np.linspace(1, 8, 25)
-                    )
-                )
+                    p, MarginalisedIntegratedEnergyLikelihood(p, np.linspace(1, 8, 25))
+                ),
             )
-        
 
 
 class zSolver:
