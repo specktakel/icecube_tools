@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import rv_histogram
 from scipy.interpolate import splev, splrep
+from scipy.signal import convolve
 from abc import ABC, abstractmethod
 import h5py
 from os.path import join
@@ -515,7 +516,13 @@ class DataDrivenBackgroundEnergyLikelihood(MarginalisedEnergyLikelihood):
         )
         h /= norms
 
-        self._hists = h
+        # Smooth over energy by averaging a bin with its neighbours using scipy.signal.convolve
+        # Copied from skyllh
+        kernel = np.prod(np.meshgrid(np.ones(3), np.ones(1), indexing="ij"), axis=0)
+        norm = convolve(np.ones_like(h), kernel, mode="same")
+        hists = convolve(h, kernel, mode="same") / norm
+
+        self._hists = hists
 
         """
         if bins is None:
