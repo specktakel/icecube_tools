@@ -11,7 +11,13 @@ from icecube_tools.utils.data import (
     available_data_periods,
     RealEvents,
 )
-from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
+from scipy.interpolate import (
+    RectBivariateSpline,
+    RegularGridInterpolator,
+    splrep,
+    splev,
+)
+from scipy.integrate import quad
 
 """
 Module for working with the public IceCube
@@ -474,24 +480,22 @@ class EffectiveArea(object):
         Return effective areas at given energy and cosz
         """
 
-        
         if isinstance(energy, np.ndarray) and isinstance(cosz, np.ndarray):
             assert energy.shape == cosz.shape
 
         if hasattr(self, "_spline"):
 
             return self._spline_call(energy, cosz)
-        
+
         elif self._interp:
 
             return self._interp_call(energy, cosz)
-        
+
         energy_idx = np.digitize(energy, self.true_energy_bins) - 1
 
         cosz_idx = np.digitize(cosz, self.cos_zenith_bins) - 1
 
         return self.values[energy_idx, cosz_idx]
-
 
     def _histogam_call(self, energy, cosz):
 
@@ -500,11 +504,11 @@ class EffectiveArea(object):
         cosz_idx = np.digitize(cosz, self.cos_zenith_bins) - 1
 
         return self.values[energy_idx, cosz_idx]
-    
+
     def _spline_call(self, energy, cosz):
 
         return self._spline(np.log10(energy), cosz, grid=False)
-    
+
     def _make_interp(self):
 
         logE = np.log10(self.true_energy_bins)
@@ -517,7 +521,7 @@ class EffectiveArea(object):
             (E, c),
             vals,
             bounds_error=False,
-            fill_value = 0.,
+            fill_value=0.0,
             method="cubic",
         )
 
@@ -532,7 +536,6 @@ class EffectiveArea(object):
 
         return self._interpolation(args)
 
-    
     def _make_spline(self):
 
         degree = self._spline_degree
@@ -543,9 +546,7 @@ class EffectiveArea(object):
         vals = self.values.copy()
         # mask out zero entries with 1e-10, in log -> -10 to avoid -infs
         # vals[vals==0] = 1e-10
-        self._spline = RectBivariateSpline(
-            E, c, vals, kx=degree, ky=degree, s=0
-        )
+        self._spline = RectBivariateSpline(E, c, vals, kx=degree, ky=degree, s=0)
 
     def get_reader(self, **kwargs):
         """
@@ -645,6 +646,51 @@ class EffectiveArea(object):
             else:
 
                 return scaled_values[energy_index]
+
+    def get_splined_detection_probability(self, Elow, Ehigh, dec):
+        # sindec = -cosz
+
+        Elow = np.atleast_1d(Elow)
+        Ehigh = np.atleast_1d(Ehigh)
+
+        cosz_idx = np.digitize(-np.sin(dec), self.cos_zenith_bins) - 1
+        aeff_slice = self.values[:, cosz_idx]
+
+        dE = np.diff(self.true_energy_bins)
+
+        dAeff_dE = aeff_slice / dE
+
+        x = np.zeros(self.true_energy_bins.size + 1, dtype=np.double)
+        x[0] = self.true_energy_bins[0]
+        x[1:-1] = self.true_energy_bins[0] + np.diff(self.true_energy_bins) / 2
+        x[-1] = self.true_energy_bins[-1]
+
+        y = np.zeros(self.true_energy_bins.size + 1, dtype=np.double)
+        y[0] = dAeff_dE[0]
+        y[1:-1] = dAeff_dE
+        y[-1] = dAeff_dE[-1]
+
+        spline = splrep(x, y, k=1, s=0)
+
+        def integral(Elow, Ehigh):
+            # maybe better to use logspace as domain?
+            return quad(splev, Elow, Ehigh, (spline, 0, 1), limit=200, full_output=1)[0]
+
+        norm = integral(Elow.min(), Ehigh.max())
+        probs = (
+            np.array(
+                [
+                    integral(El, Eh)
+                    for El, Eh in zip(
+                        Elow,
+                        Ehigh,
+                    )
+                ]
+            )
+            / norm
+        )
+
+        return probs
 
     @classmethod
     def from_dataset(cls, dataset_id, period="IC86_II", fetch=True, **kwargs):

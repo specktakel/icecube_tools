@@ -10,6 +10,11 @@ from typing import Sequence
 from ..detector.detector import Detector, IceCube
 from ..utils.data import RealEvents
 from ..detector.effective_area import EffectiveArea
+from ..detector.r2021 import R2021IRF
+
+
+from scipy.integrate import quad
+from scipy.interpolate import PchipInterpolator
 
 """
 Module to compute the IceCube energy likelihood
@@ -23,6 +28,72 @@ in high energy neutrino telescopes. Astroparticle Physics,
 Currently well-defined for searches with
 Northern sky muon neutrinos.
 """
+
+
+class Spline:
+    """Class to represent a 1D function spline using the PchipInterpolator
+    class from scipy.
+
+    The evaluate the spline, use the ``__call__`` method.
+
+    Shamelessly copied from skyllh.
+    """
+
+    def __init__(self, f, x_binedges, norm=False, **kwargs):
+        """Creates a new 1D function spline using the PchipInterpolator
+        class from scipy.
+
+        Parameters
+        ----------
+        f : (n_x,)-shaped 1D numpy ndarray
+            The numpy ndarray holding the function values at the bin centers.
+        x_binedges : (n_x+1,)-shaped 1D numpy ndarray
+            The numpy ndarray holding the bin edges of the x-axis.
+        norm : bool
+            Whether to precalculate and save normalization internally.
+        """
+        super().__init__(**kwargs)
+
+        self.x_binedges = np.copy(x_binedges)
+
+        self.x_min = self.x_binedges[0]
+        self.x_max = self.x_binedges[-1]
+
+        x = self.x_binedges[:-1] + np.diff(self.x_binedges) / 2
+
+        self.spl_f = PchipInterpolator(x, f, extrapolate=False)
+
+        self.norm = None
+        if norm:
+            self.norm = quad(
+                self.__call__, self.x_min, self.x_max, limit=200, full_output=1
+            )[0]
+
+    def __call__(self, x, oor_value=0):
+        """Evaluates the spline at the given x values. For x-values
+        outside the spline's range, the oor_value is returned.
+
+        Parameters
+        ----------
+        x : (n_x,)-shaped 1D numpy ndarray
+            The numpy ndarray holding the x values at which the spline should
+            get evaluated.
+        oor_value : float
+            The value for out-of-range (oor) coordinates.
+
+        Returns
+        -------
+        f : (n_x,)-shaped 1D numpy ndarray
+            The numpy ndarray holding the evaluated values of the spline.
+        """
+        f = self.spl_f(x)
+        f = np.where(np.isnan(f), oor_value, f)
+
+        return f
+
+    def evaluate(self, *args, **kwargs):
+        """Alias for the __call__ method."""
+        return self(*args, **kwargs)
 
 
 class MarginalisedEnergyLikelihood(ABC):
@@ -39,6 +110,91 @@ class MarginalisedEnergyLikelihood(ABC):
         """
 
         pass
+
+
+class MarginalisedSkyLLHLikeEnergyLikelihood(MarginalisedEnergyLikelihood):
+
+    def __call__(self, energy, index, dec):
+        logEreco = np.atleast_1d(np.log10(energy))
+
+        spline = self.calc_likelihood_for_index(index)
+
+        pdf = spline(energy)
+
+        return pdf
+
+    def __init__(self, period, source, Et_low, Et_high):
+        self.period = period
+        self.source = source
+        self.dec = source._coord[1]
+        self.flux_model = source.flux_model
+        self.common_ereco_bins = DataDrivenBackgroundEnergyLikelihood.LOG_ENERGY_BINS[
+            self.period
+        ]
+        self.common_ereco_bin_cen = (
+            self.common_ereco_bins[:-1] + np.diff(self.common_ereco_bins) / 2
+        )
+
+        self.setup()
+
+    def setup(self):
+        self.aeff = EffectiveArea.from_dataset("20210126", self.period)
+        self.irf = R2021IRF.from_period(self.period)
+        faulty_bins = self.irf.faulty
+        self.dec_idx = np.digitize(self.dec, self.irf.declination_bins) - 1
+        faulty_E = []
+        for faulty in faulty_bins:
+            if faulty[1] == self.dec_idx:
+                faulty_E.append(faulty[0])
+        try:
+            logEtrue_bins = self.irf.true_energy_bins[max(faulty_E) + 1 :]
+        except ValueError:
+            logEtrue_bins = self.irf.true_energy_bins
+        # Assume that only at low energies we find empty histograms
+        self.Etrue_bins = np.power(10, logEtrue_bins)
+        self.log_Etrue = logEtrue_bins[:-1] + np.diff(logEtrue_bins) / 2
+        self.Etrue_idx = np.digitize(self.log_Etrue, self.irf.true_energy_bins) - 1
+
+        print(logEtrue_bins)
+        self.detection_prob = self.aeff.get_splined_detection_probability(
+            self.Etrue_bins[:-1], self.Etrue_bins[1:], self.dec
+        )
+
+    def calc_likelihood_for_index(self, index):
+        self.flux_model._index = index
+        flux_norm = self.flux_model.integrated_spectrum(
+            self.Etrue_bins[0], self.Etrue_bins[-1]
+        )
+        prob_per_bin = (
+            self.flux_model.integrated_spectrum(
+                self.Etrue_bins[:-1], self.Etrue_bins[1:]
+            )
+            / flux_norm
+        )
+
+        assert np.isclose(prob_per_bin.sum(), 1.0)
+
+        p = prob_per_bin * self.detection_prob
+        etrue_prob_per_bin = p / np.sum(p)
+
+        assert np.isclose(etrue_prob_per_bin.sum(), 1.0)
+
+        splines = []
+
+        for i, tE_idx in enumerate(self.Etrue_idx):
+            ereco_pdf = self.irf.reco_energy[tE_idx, self.dec_idx]
+            bin_edges = self.irf.reco_energy_bins[tE_idx, self.dec_idx]
+            bin_centers = self.irf.reco_energy_bin_cen[tE_idx, self.dec_idx]
+            prob = ereco_pdf.pdf(bin_centers) * etrue_prob_per_bin[i]
+
+            spline = Spline(prob, bin_edges)
+            splines.append(spline(self.common_ereco_bin_cen))
+
+        summed_spline = np.sum(splines, axis=0)
+
+        spline_of_sum = Spline(summed_spline, self.common_ereco_bins, norm=True)
+
+        return spline_of_sum
 
 
 class MarginalisedIntegratedEnergyLikelihood(MarginalisedEnergyLikelihood):
@@ -486,7 +642,7 @@ class DataDrivenBackgroundEnergyLikelihood(MarginalisedEnergyLikelihood):
 
     SPLINE_DEGREE = 2
 
-    def __init__(self, period, bins: Sequence[float] = None):
+    def __init__(self, period):
         self._period = period
         self._events = RealEvents.from_event_files(period, use_all=True)
 

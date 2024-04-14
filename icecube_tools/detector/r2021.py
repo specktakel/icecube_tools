@@ -135,7 +135,14 @@ class R2021IRF(EnergyResolution, AngularResolution):
             )
             # self.reco_energy_splines = np.empty((self.declination_bins.size-1), dtype=RectBivariateSpline)
             self.reco_energy_bins = np.empty(
-                (self.true_energy_bins.size - 1, self.declination_bins.size - 1),
+                ((self.true_energy_bins.size - 1, self.declination_bins.size - 1)),
+                dtype=np.ndarray,
+            )
+            self.reco_energy_bin_cen = np.empty(
+                (
+                    self.true_energy_bins.size - 1,
+                    self.declination_bins.size - 1,
+                ),
                 dtype=np.ndarray,
             )
             for c_e, e in enumerate(self.true_energy_bins[:-1]):
@@ -146,6 +153,9 @@ class R2021IRF(EnergyResolution, AngularResolution):
                             (n, bins), density=False
                         )
                         self.reco_energy_bins[c_e, c_d] = bins
+                        self.reco_energy_bin_cen[c_e, c_d] = (
+                            bins[:-1] + np.diff(bins) / 2
+                        )
 
                     else:
                         # workaround for true energy bins completely empty
@@ -156,6 +166,9 @@ class R2021IRF(EnergyResolution, AngularResolution):
                                 n = np.zeros(bins.size - 1)
                                 self.reco_energy[c_e, c_d] = DummyPDF()
                                 self.reco_energy_bins[c_e, c_d] = bins
+                                self.reco_energy_bin_cen[c_e, c_d] = (
+                                    bins[:-1] + np.diff(bins) / 2
+                                )
                                 break
                             except:
                                 # this is really sloppy, sorry

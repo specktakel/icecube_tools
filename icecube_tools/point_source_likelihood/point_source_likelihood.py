@@ -316,21 +316,21 @@ class PointSourceLikelihood:
 
         self.N = self._energies.size  # len(selected_dec_band[0])
 
-        if isinstance(
-            self._direction_likelihood, EventDependentSpatialGaussianLikelihood
-        ) or isinstance(self._direction_likelihood, RayleighDistribution):
-            self._signal_llh_spatial = self._direction_likelihood(
-                self._selected_ang_errs,
-                self._selected_ras,
-                self._selected_decs,
-                self._source_coord,
-            )
+        self._signal_llh_spatial = self._direction_likelihood(
+            self._selected_ang_errs,
+            self._selected_ras,
+            self._selected_decs,
+            self._source_coord,
+        )
 
-        if isinstance(self._bg_energy_likelihood, DataDrivenBackgroundLikelihood):
-            self._bg_llh = self._bg_energy_likelihood(
-                self._selected_energies, 2.0, self._selected_decs
-            )
-            self._bg_llh[np.nonzero(self._bg_llh == 0.0)] = 1e-10
+        self._bg_llh_spatial = self._bg_energy_likelihood(
+            self._selected_energies, 2.0, self._selected_decs
+        )
+
+        self._bg_llh_energy = self._bg_spatial_likelihood()
+
+        self._bg_llh = self._bg_llh_energy * self._
+        self._bg_llh[np.nonzero(self._bg_llh == 0.0)] = 1e-10
 
     def _signal_likelihood(
         self,
@@ -498,7 +498,11 @@ class PointSourceLikelihood:
 
         one_plus_alpha = 1e-10
         alpha = one_plus_alpha - 1
-        if isinstance(self._energy_likelihood, MarginalisedIntegratedEnergyLikelihood):
+        if isinstance(
+            self._energy_likelihood, MarginalisedIntegratedEnergyLikelihood
+        ) or isinstance(
+            self._energy_likelihood, MarginalisedSkyLLHLikeEnergyLikelihood
+        ):
             index_list = [index]
         else:
             idx = np.digitize(index, self._energy_likelihood.index_list)
