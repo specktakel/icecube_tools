@@ -207,11 +207,8 @@ class DataDrivenBackgroundSpatialLikelihood(SpatialLikelihood):
 
         self._period = period
         self._events = RealEvents.from_event_files(period, use_all=True)
-        aeff = EffectiveArea.from_dataset("20210126", period)
-        cosz_bins = aeff.cos_zenith_bins
         # self._sin_dec_bins = np.sort(-cosz_bins)
         self._sin_dec_bins = self.SIN_DEC_BINS[self._period]
-        self._dec_bins = np.arcsin(self._sin_dec_bins)
         self._hist, _ = np.histogram(
             np.sin(self._events.dec[self._period]),
             bins=self._sin_dec_bins,

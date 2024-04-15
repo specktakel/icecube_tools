@@ -48,7 +48,7 @@ class NeutrinoCalculator:
 
         self._energy_resolution = energy_resolution
 
-        self.calculate_on_grid(np.linspace(1.0, 4.5, 50))
+        self.calculate_on_grid(np.arange(1.0, 5.05, 0.1))
 
         self._quad_outputs = []
 
@@ -131,51 +131,7 @@ class NeutrinoCalculator:
         return selected_bin_index
 
     def _point_source_calculation(self, source, min_energy, max_energy):
-        """
-        if hasattr(self.effective_area, "_spline") or self.effective_area._interp:
-            source_cosz = -np.sin(source.coord[1])
 
-            def integrand(energy):
-                return (
-                    source.flux_model.spectrum(energy)
-                    * self.effective_area(energy, source_cosz)
-                    * M_TO_CM**2
-                    * self._time
-                )
-
-            solve = quad(integrand, min_energy, max_energy)
-
-            self._quad_outputs.append(solve)
-            integral = solve[0]
-
-            return integral
-
-        else:
-
-            selected_bin_index = self._select_single_cos_zenith(source)
-
-            Em = self.effective_area.true_energy_bins[:-1]
-            EM = self.effective_area.true_energy_bins[1:]
-            # needs to be replaced by an integral
-            # going over reconstructed energy from minimally detected maximally detected
-            # or take the hi_nu shortcut:
-            # calculate integral at bin center, and assume that's fine
-            integrated_flux = source.flux_model.integrated_spectrum(Em, EM)
-            bin_c = (np.log10(Em) + np.log10(EM)) / 2
-            p_det_above_thr = np.ones((bin_c.size))
-            # ignore this for a moment
-            # if self._energy_resolution is not None:
-            #    for c in range(bin_c.size):
-            #        p_det_above_thr[c] = self._energy_resolution.p_det_above_threshold(np.power(10, bin_c[c]), source.coord[1])
-
-            aeff = self._selected_aeff.T[selected_bin_index] * M_TO_CM**2
-            # need to multiply with p(E detected above threshold)
-            # threshold given by data releas
-
-            dN_dt = np.dot(aeff, integrated_flux)
-
-            return dN_dt * self._time
-        """
         dec = source.coord[1]
         sin_dec = np.sin(dec)
         index = source.flux_model._index
@@ -211,7 +167,7 @@ class NeutrinoCalculator:
             )
         self._integral = integral
         spline = RectBivariateSpline(
-            sin_dec_centers, index_grid, np.log(integral), kx=2, ky=2
+            sin_dec_centers, index_grid, np.log(integral), kx=2, ky=2, s=0
         )
         self._spline = spline
 
@@ -236,39 +192,13 @@ class NeutrinoCalculator:
 
         self._time = time * YEAR_TO_SEC  # s
 
-        self._selected_effective_area_values = self.effective_area.values.copy()
-
-        # @TODO: Add contribution from bins on boundary.
-        self._selected_effective_area_values[
-            self.effective_area.true_energy_bins[1:] <= min_energy
-        ] = 0
-        self._selected_effective_area_values[
-            self.effective_area.true_energy_bins[:-1] >= max_energy
-        ] = 0
-
-        self._selected_effective_area_values.T[
-            self.effective_area.cos_zenith_bins[1:] <= min_cosz
-        ] = 0
-        self._selected_effective_area_values.T[
-            self.effective_area.cos_zenith_bins[:-1] >= max_cosz
-        ] = 0
-
         N = []
 
         for source in self._sources:
 
-            src_min_energy = source.flux_model._lower_energy
-            src_max_energy = source.flux_model._upper_energy
-
-            self._selected_aeff = self._selected_effective_area_values.copy()
-            self._selected_aeff[
-                self.effective_area.true_energy_bins[1:] <= src_min_energy
-            ] = 0
-            self._selected_aeff[
-                self.effective_area.true_energy_bins[:-1] >= src_max_energy
-            ] = 0
-
             if source.source_type == DIFFUSE:
+
+                raise NotImplementedError
 
                 n = self._diffuse_calculation(source)
 

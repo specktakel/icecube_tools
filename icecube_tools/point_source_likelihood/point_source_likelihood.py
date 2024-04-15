@@ -95,6 +95,9 @@ class PointSourceLikelihood:
 
         self._direction_likelihood = direction_likelihood
 
+        if cosz_bins is None:
+            cosz_bins = energy_likelihood.aeff.cos_zenith_bins
+
         self._cosz_bins = cosz_bins
 
         self._energy_likelihood = energy_likelihood
@@ -307,10 +310,7 @@ class PointSourceLikelihood:
 
         self._selected_bg_decs = self._decs  # [selected_dec_band]
 
-        if isinstance(self._ang_errs, np.ndarray):
-            self._selected_ang_errs = self._ang_errs[selected]
-        else:
-            self._selected_ang_errs = [1] * len(selected[0])
+        self._selected_ang_errs = self._ang_errs[selected]
 
         self.Nprime = len(selected[0])
 
@@ -323,23 +323,22 @@ class PointSourceLikelihood:
             self._source_coord,
         )
 
-        self._bg_llh_spatial = self._bg_energy_likelihood(
-            self._selected_energies, 2.0, self._selected_decs
+        self._bg_llh_energy = self._bg_energy_likelihood(
+            self._selected_energies, self._selected_decs
         )
 
-        self._bg_llh_energy = self._bg_spatial_likelihood()
+        self._bg_llh_spatial = self._bg_spatial_likelihood(self._selected_decs)
 
-        self._bg_llh = self._bg_llh_energy * self._
-        self._bg_llh[np.nonzero(self._bg_llh == 0.0)] = 1e-10
+        self._bg_llh = np.exp(
+            np.log(self._bg_llh_spatial) + np.log(self._bg_llh_energy)
+        )
+        self._bg_llh[np.isnan(self._bg_llh)] = 1e-14
+        self._bg_llh[np.isinf(self._bg_llh)] = 1e-14
 
     def _signal_likelihood(
         self,
-        ra: np.ndarray,
-        dec: np.ndarray,
-        source_coord: Tuple[float, float],
         energy: np.ndarray,
         index: float,
-        ang_err: np.ndarray,
     ):
         """
         Calculate the signal likelihood of a given event.
@@ -352,42 +351,7 @@ class PointSourceLikelihood:
         :return: Likelihood for each provided event
         """
 
-        if isinstance(
-            self._direction_likelihood, EnergyDependentSpatialGaussianLikelihood
-        ):
-
-            def spatial():
-                return self._direction_likelihood(ra, dec, source_coord, energy, index)
-
-            def en():
-                return self._energy_likelihood(energy, index, dec)
-
-        elif isinstance(
-            self._direction_likelihood, EventDependentSpatialGaussianLikelihood
-        ) or isinstance(self._direction_likelihood, RayleighDistribution):
-
-            def spatial():
-                return self._signal_llh_spatial
-
-            def en():
-                return self._energy_likelihood(energy, index, dec)
-
-        else:
-
-            def spatial():
-                return self._direction_likelihood(ra, dec, source_coord)
-
-            def en():
-                return self._energy_likelihood(energy, index, dec)
-
-        if self.which == "spatial":
-            output = spatial()
-        elif self.which == "energy":
-            output = en()
-        else:
-            output = en() * spatial()
-
-        return output
+        return self._energy_likelihood(energy, index) * self._signal_llh_spatial
 
     def _background_likelihood(
         self,
@@ -411,65 +375,7 @@ class PointSourceLikelihood:
         :return: Likelihood for each provided event
         """
 
-        # Check for background being completely determined by data likelihood
-        if isinstance(
-            self._bg_energy_likelihood, DataDrivenBackgroundLikelihood
-        ) and isinstance(self._bg_spatial_likelihood, DataDrivenBackgroundLikelihood):
-            output = self._bg_llh
-            # output[np.nonzero(output==0.)] = 1e-10
-            return output
-
-        if self._bg_energy_likelihood is not None:
-            if isinstance(
-                self._bg_energy_likelihood, DataDrivenBackgroundEnergyLikelihood
-            ):
-
-                def en(energy, index, dec):
-                    return self._bg_energy_likelihood(energy, index, dec)
-
-            else:
-
-                def en(energy):
-                    return self._bg_energy_likelihood(energy)
-
-        else:
-
-            def en(energy, index, dec):
-                return self._energy_likelihood(energy, index, dec)
-
-        if self._bg_spatial_likelihood is not None:
-
-            def spatial(dec):
-                return self._bg_spatial_likelihood(dec)
-
-        else:
-
-            def spatial(dec):
-                return np.full(energy.shape, 1.0 / self._band_solid_angle)
-
-        # Check which part is used for likelihood calculation
-        if self.which == "spatial":
-            output = spatial(dec)
-        else:
-            if np.isclose(weight, 0):
-                if self.which == "energy":
-                    output = en(energy, index_atmo, dec)
-                else:
-                    output = en(energy, index_atmo, dec) * spatial(dec)
-            else:
-                if self.which == "energy":
-                    output = (1 - weight) * en(energy, index_atmo, dec) + weight * en(
-                        energy, index_astro, dec
-                    )
-                else:
-                    output = (
-                        (1 - weight) * en(energy, index_atmo, dec)
-                        + weight * en(energy, index_astro, dec)
-                    ) * spatial(dec)
-
-        output[np.nonzero(output == 0)] = 1e-10
-
-        return output
+        raise NotImplementedError
 
     def _func_to_minimize(
         self,
@@ -498,65 +404,30 @@ class PointSourceLikelihood:
 
         one_plus_alpha = 1e-10
         alpha = one_plus_alpha - 1
-        if isinstance(
-            self._energy_likelihood, MarginalisedIntegratedEnergyLikelihood
-        ) or isinstance(
-            self._energy_likelihood, MarginalisedSkyLLHLikeEnergyLikelihood
-        ):
-            index_list = [index]
-        else:
-            idx = np.digitize(index, self._energy_likelihood.index_list)
-            llhs = np.zeros(2)
-            index_list = self._energy_likelihood.index_list[idx - 1 : idx + 1]
 
-        for c, indx in enumerate(index_list):
-            log_likelihood_ratio = np.zeros_like(self._selected_ras)
-            signal = self._signal_likelihood(
-                self._selected_ras,
-                self._selected_decs,
-                self._source_coord,
-                self._selected_energies,
-                indx,
-                ang_err=self._selected_ang_errs,
-            )
+        # for c, indx in enumerate(index_list):
+        log_likelihood_ratio = np.zeros_like(self._selected_ras)
+        signal = self._signal_likelihood(
+            self._selected_energies,
+            index,
+        )
 
-            bg = self._background_likelihood(
-                self._selected_energies,
-                self._selected_decs,
-                weight,
-                index_astro,
-                index_atmo,
-            )
+        bg = self._bg_llh
 
-            chi = (1 / self.N) * (signal / bg - 1)
+        chi = (1 / self.N) * (signal / bg - 1)
 
-            alpha_i = ns * chi
+        alpha_i = ns * chi
 
-            one_p = 1 + alpha_i < one_plus_alpha
+        one_p = 1 + alpha_i < one_plus_alpha
 
-            alpha_tilde = (alpha_i[one_p] - alpha) / one_plus_alpha
-            log_likelihood_ratio[one_p] = (
-                np.log1p(alpha) + alpha_tilde - 0.5 * np.power(alpha_tilde, 2)
-            )
-            log_likelihood_ratio[~one_p] = np.log1p(alpha_i[~one_p])
-            log_likelihood_ratio = np.sum(log_likelihood_ratio)
+        alpha_tilde = (alpha_i[one_p] - alpha) / one_plus_alpha
+        log_likelihood_ratio[one_p] = (
+            np.log1p(alpha) + alpha_tilde - 0.5 * np.power(alpha_tilde, 2)
+        )
+        log_likelihood_ratio[~one_p] = np.log1p(alpha_i[~one_p])
+        log_likelihood_ratio = np.sum(log_likelihood_ratio)
 
-            log_likelihood_ratio += (self.N - self.Nprime) * np.log1p(-ns / self.N)
-
-            if isinstance(
-                self._energy_likelihood, MarginalisedIntegratedEnergyLikelihood
-            ):
-                # exit for integrated likelihood after one iteration, since that's all that's needed
-                if self._index_prior:
-                    log_likelihood_ratio += np.log(self._index_prior(indx))
-                return -log_likelihood_ratio
-            else:
-                # continue through loop, pick value in the middle at the end
-                llhs[c] = log_likelihood_ratio
-
-        log_likelihood_ratio = np.interp(index, index_list, llhs)
-        if self._index_prior:
-            log_likelihood_ratio += np.log(self._index_prior(indx))
+        log_likelihood_ratio += (self.N - self.Nprime) * np.log1p(-ns / self.N)
 
         return -log_likelihood_ratio
 
@@ -1084,7 +955,7 @@ class TimeDependentPointSourceLikelihood:
         vary_atmo: bool = False,
         vary_astro: bool = False,
         which: str = "both",
-        emin: float = 1e1,
+        emin: float = 1e2,
         emax: float = 1e9,
         min_index: float = 1.5,
         max_index: float = 5.0,
@@ -1151,13 +1022,17 @@ class TimeDependentPointSourceLikelihood:
             create_e_llh = False
 
         for c, p in enumerate(self._irf_periods):
+            flux = PowerLawFlux(1e-20, 1e5, 2.5)
+            source = PointSource(flux_model=flux, z=0.0, coord=self.source_coord)
+
             if create_e_llh:
-                energy_llh[p] = MarginalisedIntegratedEnergyLikelihood(
-                    p, new_reco_bins, self._min_index, self._max_index
+                energy_llh[p] = MarginalisedSkyLLHLikeEnergyLikelihood(
+                    p, source, emin, emax
                 )
+                energy_llh[p].setup()
 
             self.nu_calcs[p] = NeutrinoCalculator(
-                [self.source],
+                [source],
                 self.aeffs[c],
                 # energy_resolution=energy_llh[p] if create_e_llh else None
             )

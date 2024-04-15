@@ -114,16 +114,18 @@ class MarginalisedEnergyLikelihood(ABC):
 
 class MarginalisedSkyLLHLikeEnergyLikelihood(MarginalisedEnergyLikelihood):
 
-    def __call__(self, energy, index, dec):
+    def __call__(self, energy, index):
         logEreco = np.atleast_1d(np.log10(energy))
 
         spline = self.calc_likelihood_for_index(index)
 
-        pdf = spline(energy)
+        pdf = spline(logEreco)
 
         return pdf
 
     def __init__(self, period, source, Et_low, Et_high):
+        self._min_index = 1.0
+        self._max_index = 5.0
         self.period = period
         self.source = source
         self.dec = source._coord[1]
@@ -674,6 +676,7 @@ class DataDrivenBackgroundEnergyLikelihood(MarginalisedEnergyLikelihood):
 
         # Smooth over energy by averaging a bin with its neighbours using scipy.signal.convolve
         # Copied from skyllh
+        # Hardcoded defaults from the i3 analysis script
         kernel = np.prod(np.meshgrid(np.ones(3), np.ones(1), indexing="ij"), axis=0)
         norm = convolve(np.ones_like(h), kernel, mode="same")
         hists = convolve(h, kernel, mode="same") / norm
@@ -688,7 +691,7 @@ class DataDrivenBackgroundEnergyLikelihood(MarginalisedEnergyLikelihood):
         self.make_hist()
         """
 
-    def __call__(self, energy, index, dec):
+    def __call__(self, energy, dec):
         """
         Calculate energy likelihood for given events
         index is dummy argument s.t. PointSourceLikelihood doesn't complain
