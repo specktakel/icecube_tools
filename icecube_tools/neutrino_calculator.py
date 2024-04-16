@@ -140,7 +140,6 @@ class NeutrinoCalculator:
             * self._time
             * M_TO_CM**2
             * source.flux_model._normalisation
-            / 1e-10
         )
 
     def calculate_on_grid(self, index_grid):
@@ -149,27 +148,33 @@ class NeutrinoCalculator:
         index_grid = np.atleast_1d(index_grid)
         sin_dec_bins = np.sort(-self.effective_area.cos_zenith_bins)
         aeff_vals = np.flip(self.effective_area.values, axis=1)
-        sin_dec_centers = sin_dec_bins[:-1] + np.diff(sin_dec_bins) / 2
+        self.sin_dec_centers = sin_dec_bins[:-1] + np.diff(sin_dec_bins) / 2
         etrue_bins = self.effective_area.true_energy_bins
 
-        flux_model = PowerLawFlux(1e-10, 1e5, 2.0, 1e2, 1e9)
-        integral = np.zeros((sin_dec_centers.size, index_grid.size))
+        flux_model = self._sources[0].flux_model
+        integral = np.zeros((self.sin_dec_centers.size, index_grid.size))
         # Calculate fluxes over energy bins of effective area
         # integrated_fluxes = np.zeros((index_grid.size, etrue_bins.size - 1))
+        init_index = flux_model._index
         for c, index in enumerate(index_grid):
             flux_model._index = index
             integrated_fluxes = flux_model.integrated_spectrum(
                 etrue_bins[:-1], etrue_bins[1:]
             )
+            # print(integrated_fluxes)
+
+            assert integrated_fluxes.shape == etrue_bins[:-1].shape
 
             integral[:, c] = np.sum(
                 aeff_vals * integrated_fluxes[:, np.newaxis], axis=0
             )
         self._integral = integral
         spline = RectBivariateSpline(
-            sin_dec_centers, index_grid, np.log(integral), kx=2, ky=2, s=0
+            self.sin_dec_centers, index_grid, np.log(integral), kx=2, ky=2, s=0
         )
         self._spline = spline
+        self.index_grid = index_grid
+        flux_model._index = init_index
 
     def __call__(self, time=1, min_energy=1e2, max_energy=1e9, min_cosz=-1, max_cosz=1):
         """
