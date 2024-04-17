@@ -44,6 +44,8 @@ class PointSourceLikelihood:
 
     def __init__(
         self,
+        source: PointSource,
+        period: str,
         direction_likelihood: SpatialLikelihood,
         energy_likelihood: MarginalisedEnergyLikelihood,
         ras: Sequence[float],
@@ -58,7 +60,6 @@ class PointSourceLikelihood:
         bg_spatial_likelihood=None,
         index_prior=None,
         band_width_factor: float = 5.0,
-        cosz_bins: np.ndarray = None,
     ):
         """
         Calculate the point source likelihood for a given
@@ -94,13 +95,6 @@ class PointSourceLikelihood:
         self._vary_astro = vary_astro
 
         self._direction_likelihood = direction_likelihood
-
-        if cosz_bins is None:
-            cosz_bins = energy_likelihood.aeff.cos_zenith_bins
-
-        self._cosz_bins = cosz_bins
-
-        self._energy_likelihood = energy_likelihood
 
         self._bg_energy_likelihood = bg_energy_likelihood
 
@@ -150,6 +144,13 @@ class PointSourceLikelihood:
 
         self.Ntot = len(self._energies)
 
+        self._energy_likelihood = energy_likelihood(
+            source, period, self._selected_energies
+        )
+
+        self._min_index = self._energy_likelihood._min_index
+        self._max_index = self._energy_likelihood._max_index
+
     def angular_distance(self):
         src_ra = self.source_coord[0]
         src_dec = self.source_coord[1]
@@ -181,40 +182,10 @@ class PointSourceLikelihood:
 
         self._source_coord = new_coord
 
-        if (
-            isinstance(self._energy_likelihood, MarginalisedIntegratedEnergyLikelihood)
-            and not self._cosz_bins
-        ):
-            dec_bins = np.arcsin(-self._energy_likelihood._aeff.cos_zenith_bins)
-
-        elif self._cosz_bins is not None:
-            dec_bins = np.arcsin(-self._cosz_bins)
-
-        else:
-            raise ValueError("No cosz bins provided")
-
-        dec_bins.sort()
-        zero_dec_idx = np.digitize(0.0, dec_bins) - 1
-
-        # How many dec bins away is self._band_width at the equator? Take as conservative number of dec bins to consider
-        upper_dec_idx = np.digitize(np.deg2rad(self._band_width), dec_bins) - 1
-        num_of_bins = upper_dec_idx - zero_dec_idx
-
         dec = new_coord[1]
-        # Includes a symmetric number of bins below and above the declination in the source selection,
-        # sources ON the bin edge are not considered but treated the way np.digitize handles it.
-        # self._band_width should be large enough anyways
-        dec_idx = np.digitize(dec, dec_bins) - 1
-        dec_idx_low = dec_idx - num_of_bins
-        dec_idx_high = dec_idx + num_of_bins + 1
 
-        # Catch exceptions for sources close to the North pole or South pole
-        if dec_idx_high >= dec_bins.size:
-            dec_idx_high = dec_bins.size - 1
-        if dec_idx_low < 0:
-            dec_idx_low = 0
-        self._dec_low = dec_bins[dec_idx_low]
-        self._dec_high = dec_bins[dec_idx_high]
+        self._dec_low = dec - np.deg2rad(self._band_width)
+        self._dec_high = dec + np.deg2rad(self._band_width)
 
         if self._dec_low < np.arcsin(-1.0) or np.isnan(self._dec_low):
             self._dec_low = np.arcsin(-1.0)
@@ -332,8 +303,8 @@ class PointSourceLikelihood:
         self._bg_llh = np.exp(
             np.log(self._bg_llh_spatial) + np.log(self._bg_llh_energy)
         )
-        self._bg_llh[np.isnan(self._bg_llh)] = 1e-14
-        self._bg_llh[np.isinf(self._bg_llh)] = 1e-14
+        self._bg_llh[np.isnan(self._bg_llh)] = 1e-10
+        self._bg_llh[np.isinf(self._bg_llh)] = 1e-10
 
     def _signal_likelihood(
         self,
@@ -351,7 +322,7 @@ class PointSourceLikelihood:
         :return: Likelihood for each provided event
         """
 
-        return self._energy_likelihood(energy, index) * self._signal_llh_spatial
+        return self._energy_likelihood(index) * self._signal_llh_spatial
 
     def _background_likelihood(
         self,
@@ -1026,10 +997,7 @@ class TimeDependentPointSourceLikelihood:
             source = PointSource(flux_model=flux, z=0.0, coord=self.source_coord)
 
             if create_e_llh:
-                energy_llh[p] = MarginalisedSkyLLHLikeEnergyLikelihood(
-                    p, source, emin, emax
-                )
-                energy_llh[p].setup()
+                energy_llh[p] = MarginalisedSkyLLHLikeEnergyLikelihood
 
             self.nu_calcs[p] = NeutrinoCalculator(
                 [source],
@@ -1041,6 +1009,8 @@ class TimeDependentPointSourceLikelihood:
             # bg_llh = DataDrivenBackgroundLikelihood(p, spline=0)
 
             self.likelihoods[p] = PointSourceLikelihood(
+                source,
+                p,
                 spatial_llh,
                 energy_llh[p],
                 ra[p],

@@ -140,6 +140,7 @@ class NeutrinoCalculator:
             * self._time
             * M_TO_CM**2
             * source.flux_model._normalisation
+            * self._time
         )
 
     def calculate_on_grid(self, index_grid):

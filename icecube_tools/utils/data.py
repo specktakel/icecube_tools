@@ -960,6 +960,27 @@ class RealEvents(Events):
         inst._uptime = Uptime(*inst._periods)
         inst._data_periods = inst._uptime.data_periods
         inst._irf_periods = inst._uptime.irf_periods
+        """
+        #TODO make compatible with implementation of masks and properties
+        mask = {}
+        # Make cuts according to skyllh
+        if "IC79" in inst._irf_periods:
+            mask["IC79"] = np.invert(
+                np.logical_and(
+                    np.sin(inst.dec["IC79"]) < -0.75,
+                    np.log10(inst.reco_energy["IC79"] < 4.2),
+                )
+            )
+        if "IC86_I" in inst._irf_periods:
+            mask["IC86_I"] = np.invert(
+                np.logical_and(
+                    np.sin(inst.dec["IC86_I"]) < -0.2,
+                    np.log10(inst.reco_energy["IC86_I"] < 2.5),
+                )
+            )
+        if mask:
+            inst.mask = mask
+        """
         return inst
 
     @classmethod

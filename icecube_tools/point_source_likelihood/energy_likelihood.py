@@ -114,18 +114,45 @@ class MarginalisedEnergyLikelihood(ABC):
 
 class MarginalisedSkyLLHLikeEnergyLikelihood(MarginalisedEnergyLikelihood):
 
-    def __call__(self, energy, index):
-        logEreco = np.atleast_1d(np.log10(energy))
+    def __call__(self, index):
 
-        spline = self.calc_likelihood_for_index(index)
+        index_idx = np.digitize(index, self._index_bins) - 1
+        x1 = self._index_grid[index_idx]
+        try:
+            M1, a, b = self._cache[x1]
+        except:
+            x0 = self._index_grid[index_idx - 1]
 
-        pdf = spline(logEreco)
+            x2 = self._index_grid[index_idx + 1]
 
-        return pdf
+            spline0 = self.calc_likelihood_for_index(x0)
+            spline1 = self.calc_likelihood_for_index(x1)
+            spline2 = self.calc_likelihood_for_index(x2)
+            M0 = spline0(self._logEreco)
+            M1 = spline1(self._logEreco)
+            M2 = spline2(self._logEreco)
 
-    def __init__(self, period, source, Et_low, Et_high):
-        self._min_index = 1.0
-        self._max_index = 5.0
+            a = 0.5 * (M0 - 2.0 * M1 + M2) / self._delta_index_squared
+            b = 0.5 * (M2 - M0) / self._delta_index
+
+            self._cache[x1] = (M1, a, b)
+
+        values = a * (index - x1) ** 2 + b * (index - x1) + M1
+
+        return values
+
+    def __init__(self, source, period, energies):
+
+        self._cache = {}
+
+        self._index_grid = np.arange(1.0, 5.05, 0.1)
+        self._index_bins = np.arange(0.95, 5.06, 0.1)
+
+        self._delta_index = np.diff(self._index_grid)[0]
+        self._delta_index_squared = np.power(self._delta_index, 2.0)
+        self._logEreco = np.log10(energies)
+        self._min_index = 1.1
+        self._max_index = 4.9
         self.period = period
         self.source = source
         self.dec = source._coord[1]
