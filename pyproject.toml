@@ -16,7 +16,7 @@ maintainers = [
     {name = "Julian Kuhlmann", email = "julian.kuhlmann@mpp.mpg.de"},
     {name = "Francesca Capel", email = "capel.francesca@gmail.com"},
 ]
-license = "GNU"
+license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 
 dependencies = [
