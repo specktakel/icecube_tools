@@ -7,7 +7,7 @@ name = "icecube_tools"
 description = "A tool to perform frequentist analysis of public IceCube data"
 dynamic = ["version"]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = "=3.9"
 authors = [
     {name = "Francesca Capel", email = "capel.francesca@gmail.com"},
     {name = "Julian Kuhlmann", email = "julian.kuhlmann@mpp.mpg.de"},
