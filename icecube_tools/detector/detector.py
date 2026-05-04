@@ -7,8 +7,6 @@ from .energy_resolution import EnergyResolution
 from .angular_resolution import AngularResolution
 from .r2021 import R2021IRF
 
-
-
 """
 Detector modules, bringing together 
 effective area and energy resolution.
@@ -75,7 +73,9 @@ class IceCube(Detector):
     IceCube detector.
     """
 
-    def __init__(self, effective_area, energy_resolution, angular_resolution, period=None):
+    def __init__(
+        self, effective_area, energy_resolution, angular_resolution, period=None
+    ):
         """
         IceCube detector.
 
@@ -94,15 +94,16 @@ class IceCube(Detector):
 
         super().__init__()
 
-    
     @classmethod
-    def from_period(cls, period: str):
+    def from_period(
+        cls, period: str, release: str = "20210126"
+    ):  # TODO change to new ID
         """
         Generate a detector from a period string of 2021 data release
         """
 
-        aeff = EffectiveArea.from_dataset("20210126", period)
-        irf = R2021IRF.from_period(period)
+        aeff = EffectiveArea.from_dataset(release, period)
+        irf = R2021IRF.from_period(release, period)
 
         return cls(aeff, irf, irf)
 
@@ -113,20 +114,16 @@ class TimeDependentDetector(ABC):
     def available_periods(self):
         return self._available_periods
 
-
     @property
     def detectors(self):
         return self._detectors
-    
 
     @property
     def periods(self):
         return list(self._detectors.keys())
 
-
     def __getitem__(self, key):
         return self._detectors[key]
-
 
 
 class TimeDependentIceCube(TimeDependentDetector):
@@ -134,13 +131,10 @@ class TimeDependentIceCube(TimeDependentDetector):
     Class to organise a time-dependent detector.
     """
 
-
     _available_periods = ["IC40", "IC59", "IC79", "IC86_I", "IC86_II"]
-
 
     def __init__(self, detectors):
         self._detectors = detectors
-
 
     @classmethod
     def from_periods(cls, *periods):
@@ -150,7 +144,7 @@ class TimeDependentIceCube(TimeDependentDetector):
         :param periods: Tuple of strings, available ones listed above.
         :return:  `TimeDependentIceCube` instance.
         """
-        
+
         # Check if all periods are supported
         if not all(_ in cls._available_periods for _ in periods):
             raise ValueError("Some period not supported.")
@@ -165,7 +159,6 @@ class TimeDependentIceCube(TimeDependentDetector):
             detectors[p] = IceCube(aeff, irf, irf, p)
         return cls(detectors)
 
-    
     def yield_detectors(self):
         for p, det in self.detectors.items():
             yield p, det

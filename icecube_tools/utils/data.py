@@ -27,6 +27,7 @@ logger.setLevel(logging.WARNING)
 data_directory = os.path.abspath(os.path.join(os.path.expanduser("~"), ".icecube_data"))
 
 available_datasets = {
+    "NEW_ONE": {},  # TODO
     "20210126": {
         "url": "https://dataverse.harvard.edu/api/access/dataset/:persistentId/?persistentId=doi:10.7910/DVN/VKL316",
         "dir": "20210126_PS-IC40-IC86_VII",
@@ -35,21 +36,21 @@ available_datasets = {
     "20181018": {
         "url": "https://icecube.wisc.edu/data-releases/20181018_All-sky_point-source_IceCube_data%20_years_2010-2012.zip",
         "dir": "20181018_All-sky_point-source_IceCube_data%20_years_2010-2012",
-        "subdir": ""
+        "subdir": "",
     },
     "20150820": {
         "url": "https://icecube.wisc.edu/data-releases/20150820_Astrophysical_muon_neutrino_flux_in_the_northern_sky_with_2_years_of_IceCube_data.zip",
         "dir": "20150820_Astrophysical_muon_neutrino_flux_in_the_northern_sky_with_2_years_of_IceCube_data",
-        "subdir": ""
+        "subdir": "",
     },
     "20131121": {
         "url": "https://icecube.wisc.edu/data-releases/20131121_Search_for_contained_neutrino_events_at_energies_above_30_TeV_in_2_years_of_data.zip",
         "dir": "20131121_Search_for_contained_neutrino_events_at_energies_above_30_TeV_in_2_years_of_data",
         "subdir": "",
-    }
+    },
 }
 
-available_irf_periods = ["IC40", "IC59", "IC79", "IC86_I", "IC86_II"]
+available_irf_periods = ["IC40", "IC59", "IC79", "IC86_I", "IC86_II"]  # TODO
 
 available_data_periods = [
     "IC40",
@@ -62,6 +63,7 @@ available_data_periods = [
     "IC86_V",
     "IC86_VI",
     "IC86_VII",
+    # TODO
 ]
 
 
@@ -73,7 +75,7 @@ class IceCubeData:
 
     def __init__(
         self,
-        #base_url=icecube_data_base_url,
+        # base_url=icecube_data_base_url,
         data_directory=data_directory,
         cache_name=".cache",
         # update=False,
@@ -88,7 +90,7 @@ class IceCubeData:
         :param update: Refresh the cache if true
         """
 
-        #self.base_url = base_url
+        # self.base_url = base_url
 
         self.data_directory = data_directory
 
@@ -100,7 +102,6 @@ class IceCubeData:
         # Make data directory if it doesn't exist
         if not os.path.exists(self.data_directory):
             os.makedirs(self.data_directory)
-
 
     def ls(self, verbose=True, update=False):
         """
@@ -164,13 +165,13 @@ class IceCubeData:
                 raise ValueError(
                     "Dataset %s is not in list of known datasets" % dataset
                 )
-            
+
             ds = available_datasets[dataset]
             url = ds["url"]
             dl_dir = ds["dir"]
             local_path = os.path.join(self.data_directory, dl_dir)
             subdir = ds["subdir"]
-            file = os.path.join(local_path, dl_dir+".zip")
+            file = os.path.join(local_path, dl_dir + ".zip")
             # Only fetch if not already there!
             if not os.path.exists(local_path) or overwrite:
                 os.makedirs(local_path, exist_ok=True)
@@ -227,7 +228,9 @@ class IceCubeData:
         Download all data to a given location
         """
         raise NotImplementedError()
-        self.fetch(list(available_datasets.keys()), write_to=write_to, overwrite=overwrite)
+        self.fetch(
+            list(available_datasets.keys()), write_to=write_to, overwrite=overwrite
+        )
 
     def get_path_to(self, dataset):
         """
@@ -236,14 +239,14 @@ class IceCubeData:
 
         if dataset not in available_datasets.keys():
             raise ValueError("Dataset is not available")
-        
+
         ds = available_datasets[dataset]
         dl_dir = ds["dir"]
         local_path = os.path.join(self.data_directory, dl_dir)
         subdir = ds["subdir"]
-        #file = os.path.join(local_path, dl_dir+".zip")
+        # file = os.path.join(local_path, dl_dir+".zip")
 
-        #local_zip_loc = os.path.join(self.data_directory, dataset)
+        # local_zip_loc = os.path.join(self.data_directory, dataset)
 
         path = os.path.join(local_path, subdir)
 
@@ -300,7 +303,7 @@ class Uptime:
             np.loadtxt(
                 os.path.join(
                     data_directory,
-                    "20210126_PS-IC40-IC86_VII",
+                    "20210126_PS-IC40-IC86_VII",  # TODO
                     "icecube_10year_ps",
                     "uptime",
                     "IC40_exp.csv",
@@ -325,7 +328,7 @@ class Uptime:
             self._data[p] = np.loadtxt(
                 os.path.join(
                     data_directory,
-                    "20210126_PS-IC40-IC86_VII",
+                    "20210126_PS-IC40-IC86_VII",  # TODO
                     "icecube_10year_ps",
                     "uptime",
                     f"{p}_exp.csv",
@@ -653,7 +656,7 @@ class SimEvents(Events):
         "IC86_IV",
         "IC86_V",
         "IC86_VI",
-        "IC86_VII",
+        "IC86_VII",  # TODO, optional
     ]
 
     keys = [
@@ -878,7 +881,14 @@ class RealEvents(Events):
         to_be_added = []
 
         for p in self._periods:
-            if p in ["IC86_II", "IC86_III", "IC86_IV", "IC86_V", "IC86_VI", "IC86_VII"]:
+            if p in [
+                "IC86_II",
+                "IC86_III",
+                "IC86_IV",
+                "IC86_V",
+                "IC86_VI",
+                "IC86_VII",
+            ]:  # TODO
                 to_be_added.append(p)
 
         reco_energy = [self._reco_energy[_] for _ in to_be_added]
@@ -924,7 +934,7 @@ class RealEvents(Events):
             np.loadtxt(
                 os.path.join(
                     data_directory,
-                    "20210126_PS-IC40-IC86_VII",
+                    "20210126_PS-IC40-IC86_VII",  # TODO
                     "icecube_10year_ps",
                     "uptime",
                     "IC40_exp.csv",
@@ -937,7 +947,7 @@ class RealEvents(Events):
             dataset_dir = data_interface.get_path_to(dataset[0])
         periods = list(periods)
         if not periods:
-            # use all periods if none are specified
+            # use all periods if none are specified, TODO
             periods = [
                 "IC40",
                 "IC59",
@@ -980,14 +990,14 @@ class RealEvents(Events):
                     temp.events[p] = np.loadtxt(
                         join(
                             data_directory,
-                            f"20210126_PS-IC40-IC86_VII/icecube_10year_ps/events/{p}_exp.csv",
+                            f"20210126_PS-IC40-IC86_VII/icecube_10year_ps/events/{p}_exp.csv",  # TODO
                         )
                     )
                 except FileNotFoundError:
                     temp.events[p] = np.loadtxt(
                         join(
                             data_directory,
-                            f"20210126_PS-IC40-IC86_VII/icecube_10year_ps/events/{p}_exp-1.csv",
+                            f"20210126_PS-IC40-IC86_VII/icecube_10year_ps/events/{p}_exp-1.csv",  # TODO
                         )
                     )
                 temp._periods.append(p)

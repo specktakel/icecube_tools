@@ -417,10 +417,13 @@ class R2021IRF(EnergyResolution, AngularResolution):
             return self._marginal_pdf_angerr(idx_e, idx_d, idx_e_r, idx_k, hist_type)
 
     @classmethod
-    def from_period(cls, period, **kwargs):
+    def from_period(cls, release, period, **kwargs):
         """
         Reads in IRFs of data set.
-        For consistency and reducing the error-prone...iness, kinematic angles ("PSF") and angular errors are converted to log(degrees).
+        For consistency and reducing the error-prone...iness,
+        kinematic angles ("PSF") and angular errors are converted to log(degrees).
+
+        :param release: Which release, either '20210126' or whatever comes after # TODO
         :param fetch: True if data should be downloaded
         """
 
@@ -429,7 +432,7 @@ class R2021IRF(EnergyResolution, AngularResolution):
 
         if kwargs.get("fetch", True):
             data_interface = IceCubeData()
-            dataset = data_interface.find("20210126")
+            dataset = data_interface.find(release)
             data_interface.fetch(dataset)
             dataset_dir = data_interface.get_path_to(dataset[0])
         else:
