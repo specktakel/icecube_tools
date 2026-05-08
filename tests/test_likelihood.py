@@ -4,7 +4,7 @@ from icecube_tools.detector.angular_resolution import AngularResolution
 from icecube_tools.detector.detector import IceCube
 from icecube_tools.source.flux_model import PowerLawFlux
 from icecube_tools.source.source_model import DiffuseSource, PointSource
-from icecube_tools.utils.data import SimEvents
+from icecube_tools.utils.data import SimEvents, I3_10, I3_14
 from icecube_tools.detector.r2021 import R2021IRF
 from icecube_tools.simulator import Simulator, TimeDependentSimulator
 from icecube_tools.point_source_likelihood.spatial_likelihood import (
@@ -79,7 +79,9 @@ def test_fit_from_single(source_coords, output_directory, single_file_sim):
     new_reco_bins = np.linspace(2, 9, num=25)
 
     energy_likelihood = {
-        "IC86_II": MarginalisedIntegratedEnergyLikelihood("IC86_II", new_reco_bins)
+        "IC86_II": MarginalisedIntegratedEnergyLikelihood(
+            "IC86_II", I3_10, new_reco_bins
+        )
     }
     spatial_likelihood = EventDependentSpatialGaussianLikelihood()
 

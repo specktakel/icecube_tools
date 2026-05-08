@@ -8,6 +8,7 @@ from typing import Sequence
 from ..detector.detector import Detector, IceCube
 from ..utils.data import RealEvents
 from ..detector.effective_area import EffectiveArea
+from ..utils.data import I3_10, I3_14
 
 """
 Module to compute the IceCube energy likelihood
@@ -49,6 +50,7 @@ class MarginalisedIntegratedEnergyLikelihood(MarginalisedEnergyLikelihood):
         self,
         # detector: Detector,
         period: str,
+        dataset_id: str,
         reco_bins: np.ndarray,
         min_index: float = 1.5,
         max_index: float = 4.0,
@@ -64,7 +66,7 @@ class MarginalisedIntegratedEnergyLikelihood(MarginalisedEnergyLikelihood):
 
         # TODO change reco_bins to cover the range provided by all the pdfs
         # and have the coarsest binning of all pdfs
-        detector = IceCube.from_dataset(period=period)
+        detector = IceCube.from_dataset(dataset_id, period=period)
         aeff = detector._effective_area
         irf = detector._angular_resolution
         self._irf = irf

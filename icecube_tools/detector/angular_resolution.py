@@ -160,7 +160,7 @@ class AngularResolution(object):
         self._filename = filename
 
         self._reader = self.get_reader()
-        #put self.values somewhere else, not needed for every child class
+        # put self.values somewhere else, not needed for every child class
         self.values = (self._reader.ang_res_values + offset) * scale
 
         if self._energy_type == TRUE_ENERGY:
@@ -201,7 +201,6 @@ class AngularResolution(object):
             self._energy_type = RECO_ENERGY
 
             return R2015AngResReader(self._filename)
-
 
         elif ".csv" in self._filename:
 
@@ -245,11 +244,17 @@ class AngularResolution(object):
             b = (self._maximum - ang_res) / self._scatter
 
             if isinstance(ang_res, np.ndarray):
-                #shouldn't this be rvs(size=ang_res.size)?
-                ang_res = stats.truncnorm(a, b, loc=ang_res, scale=np.full(ang_res.shape, self._scatter)).rvs(
-                )
-            else: 
-                ang_res = stats.truncnorm(a, b, loc=ang_res, scale=self._scatter,).rvs(
+                # shouldn't this be rvs(size=ang_res.size)?
+                ang_res = stats.truncnorm(
+                    a, b, loc=ang_res, scale=np.full(ang_res.shape, self._scatter)
+                ).rvs()
+            else:
+                ang_res = stats.truncnorm(
+                    a,
+                    b,
+                    loc=ang_res,
+                    scale=self._scatter,
+                ).rvs(
                     1
                 )[0]
 
@@ -294,7 +299,7 @@ class AngularResolution(object):
 
         if not isinstance(ra, np.ndarray):
             ra = np.array([ra])
-            isarray=False
+            isarray = False
         if not isinstance(dec, np.ndarray):
             dec = np.array([dec])
 
@@ -302,7 +307,6 @@ class AngularResolution(object):
 
         if not isinstance(Etrue, np.ndarray):
             Etrue = np.array([Etrue])
-            
 
         assert dec.shape == Etrue.shape
 
@@ -315,7 +319,7 @@ class AngularResolution(object):
         unit_vector = np.array([sky_coord.x, sky_coord.y, sky_coord.z])
         kappa = get_kappa(ang_err, self.ang_err_p)
         new_unit_vector = sample_vMF(unit_vector, kappa)
-        
+
         if new_unit_vector.shape != (3, Etrue.size):
             new_unit_vector = new_unit_vector.T
 
