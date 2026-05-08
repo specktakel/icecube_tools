@@ -9,16 +9,18 @@ from vMF import sample_vMF
 
 import logging
 
-from icecube_tools.detector.energy_resolution import EnergyResolution
-from icecube_tools.detector.angular_resolution import AngularResolution
-from icecube_tools.utils.data import (
+from .energy_resolution import EnergyResolution
+from .angular_resolution import AngularResolution
+from ..utils.data import (
     find_files,
     data_directory,
     IceCubeData,
     ddict,
     available_irf_periods,
+    I3_10,
+    I3_14,
 )
-from icecube_tools.utils.vMF import get_kappa, get_theta_p
+from ..utils.vMF import get_kappa, get_theta_p
 
 R2021_IRF_FILENAME = "smearing.csv"
 
@@ -70,6 +72,7 @@ class R2021IRF(EnergyResolution, AngularResolution):
         Special class to handle smearing effects given in the 2021 data release.
         """
 
+        # TODO: fix for new data release
         if period in R2021IRF.STACK:
             self.__dict__ = self.STACK[period].__dict__
         else:
@@ -417,13 +420,16 @@ class R2021IRF(EnergyResolution, AngularResolution):
             return self._marginal_pdf_angerr(idx_e, idx_d, idx_e_r, idx_k, hist_type)
 
     @classmethod
-    def from_period(cls, release, period, **kwargs):
+    def from_period(cls, period, dataset_id=I3_10, **kwargs):
         """
         Reads in IRFs of data set.
         For consistency and reducing the error-prone...iness,
         kinematic angles ("PSF") and angular errors are converted to log(degrees).
 
-        :param release: Which release, either '20210126' or whatever comes after # TODO
+        NB: Order of period and dataset_id is changed w.r.t. similar methods!
+
+        :param period: Detector season
+        :param dataset_id: Which release, either '20210126' or whatever comes after # TODO
         :param fetch: True if data should be downloaded
         """
 
@@ -432,7 +438,7 @@ class R2021IRF(EnergyResolution, AngularResolution):
 
         if kwargs.get("fetch", True):
             data_interface = IceCubeData()
-            dataset = data_interface.find(release)
+            dataset = data_interface.find(dataset_id)
             data_interface.fetch(dataset)
             dataset_dir = data_interface.get_path_to(dataset[0])
         else:
@@ -442,6 +448,10 @@ class R2021IRF(EnergyResolution, AngularResolution):
         for f in files:
             if "_".join((period, R2021_IRF_FILENAME)) in f:
                 return cls(f, period, **kwargs)
+
+    @classmethod
+    def from_dataset(cls, dataset_id, period, **kwargs):
+        return cls.from_period(period, dataset_id, **kwargs)
 
     def _get_angerr_dist(self, c_e, c_d, c_e_r, c_psf):
         """

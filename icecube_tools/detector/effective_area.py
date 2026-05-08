@@ -10,6 +10,8 @@ from icecube_tools.utils.data import (
     available_irf_periods,
     available_data_periods,
     RealEvents,
+    I3_10,
+    I3_14,
 )
 
 """
@@ -24,7 +26,7 @@ BRAUN2008_AEFF_FILENAME = "AeffBraun2008.csv"
 R2021_AEFF_FILENAME = "effectiveArea.csv"
 
 # TODO add new one
-_supported_dataset_ids = ["20131121", "20150820", "20181018", "20210126"]
+_supported_dataset_ids = ["20131121", "20150820", "20181018", I3_10]  # , I3_14]
 
 
 class IceCubeAeffReader(ABC):
@@ -555,7 +557,7 @@ class EffectiveArea(object):
                 return scaled_values[energy_index]
 
     @classmethod
-    def from_dataset(cls, dataset_id, period="IC86_II", fetch=True, **kwargs):
+    def from_dataset(cls, dataset_id=I3_10, period="IC86_II", fetch=True, **kwargs):
         """
         Build effective area from a public dataset.
 
@@ -607,7 +609,7 @@ class EffectiveArea(object):
             # Folder containing all Aeff info
             aeff_file_name = folders[0]
 
-        elif dataset_id == "20210126":
+        elif dataset_id == I3_10:
             if period not in available_irf_periods:
                 raise ValueError(f"Period {period} is not supported.")
 
@@ -617,7 +619,7 @@ class EffectiveArea(object):
                     aeff_file_name = f
                     break
 
-        elif dataset_id == "NEW_ONE":  # TODO
+        elif dataset_id == I3_14:  # TODO
             pass
 
         return cls(aeff_file_name, period=period, **kwargs)

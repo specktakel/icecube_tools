@@ -6,6 +6,7 @@ from .effective_area import EffectiveArea
 from .energy_resolution import EnergyResolution
 from .angular_resolution import AngularResolution
 from .r2021 import R2021IRF
+from ..utils.data import I3_10, I3_14
 
 """
 Detector modules, bringing together 
@@ -74,7 +75,11 @@ class IceCube(Detector):
     """
 
     def __init__(
-        self, effective_area, energy_resolution, angular_resolution, period=None
+        self,
+        effective_area: EffectiveArea,
+        energy_resolution: EnergyResolution,
+        angular_resolution: AngularResolution,
+        period=None,
     ):
         """
         IceCube detector.
@@ -95,17 +100,15 @@ class IceCube(Detector):
         super().__init__()
 
     @classmethod
-    def from_period(
-        cls, period: str, release: str = "20210126"
-    ):  # TODO change to new ID
+    def from_dataset(cls, dataset_id: str = I3_10, period: str = "IC86_II"):
         """
         Generate a detector from a period string of 2021 data release
         """
 
-        aeff = EffectiveArea.from_dataset(release, period)
-        irf = R2021IRF.from_period(release, period)
+        aeff = EffectiveArea.from_dataset(dataset_id, period)
+        irf = R2021IRF.from_period(period, dataset_id)
 
-        return cls(aeff, irf, irf)
+        return cls(aeff, irf, irf, period)
 
 
 class TimeDependentDetector(ABC):
@@ -137,12 +140,16 @@ class TimeDependentIceCube(TimeDependentDetector):
         self._detectors = detectors
 
     @classmethod
-    def from_periods(cls, *periods):
+    def from_periods(cls, *periods, dataset_id=I3_10):
         """
         Creates class instance with a detector model for each given
         data taking period.
+
+        NB: Order of periods and datset_id is changed w.r.t. other similar methods!
+
         :param periods: Tuple of strings, available ones listed above.
-        :return:  `TimeDependentIceCube` instance.
+        :param dataset_id: str identifying the dataset
+        :return: `TimeDependentIceCube` instance.
         """
 
         # Check if all periods are supported
@@ -154,10 +161,14 @@ class TimeDependentIceCube(TimeDependentDetector):
 
         # Create detector instance for each period, return class instance
         for p in periods:
-            aeff = EffectiveArea.from_dataset("20210126", p, fetch=False)
-            irf = R2021IRF.from_period(p, fetch=False)
+            aeff = EffectiveArea.from_dataset(dataset_id, p, fetch=False)
+            irf = R2021IRF.from_period(p, dataset_id, fetch=False)
             detectors[p] = IceCube(aeff, irf, irf, p)
         return cls(detectors)
+
+    @classmethod
+    def from_dataset(cls, dataset_id, *periods):
+        return cls.from_periods(*periods, dataset_id=dataset_id)
 
     def yield_detectors(self):
         for p, det in self.detectors.items():

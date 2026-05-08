@@ -12,6 +12,7 @@ from tqdm import tqdm
 from astropy import units as u
 import h5py
 import logging
+from pathlib import Path
 from abc import ABC, abstractmethod
 
 from ..source.flux_model import BrokenPowerLawFlux, PowerLawFlux
@@ -26,8 +27,11 @@ logger.setLevel(logging.WARNING)
 # icecube_data_base_url = "https://icecube.wisc.edu/data-releases"
 data_directory = os.path.abspath(os.path.join(os.path.expanduser("~"), ".icecube_data"))
 
+I3_10 = "20210126"
+I3_14 = "NEW_ONE"  # TODO
+
 available_datasets = {
-    "NEW_ONE": {},  # TODO
+    "NEW_ONE": {"urls": None, "dir": None, "subdir": None},  # TODO
     "20210126": {
         "url": "https://dataverse.harvard.edu/api/access/dataset/:persistentId/?persistentId=doi:10.7910/DVN/VKL316",
         "dir": "20210126_PS-IC40-IC86_VII",
@@ -78,7 +82,6 @@ class IceCubeData:
         # base_url=icecube_data_base_url,
         data_directory=data_directory,
         cache_name=".cache",
-        # update=False,
     ):
         """
         Handle the interface with IceCube's public data
@@ -87,7 +90,6 @@ class IceCubeData:
         :param base_url: Base url for data releases
         :param data_directory: Where to put the data
         :param cache_name: Name of the requests cache
-        :param update: Refresh the cache if true
         """
 
         # self.base_url = base_url
@@ -298,20 +300,23 @@ class Uptime:
     _available_data_periods = available_data_periods
     _available_irf_periods = available_irf_periods
 
-    def __init__(self, *periods, **kwargs):
+    def __init__(self, *periods, release="20210126", **kwargs):
+        # TODO: default to new one
+        directory = available_datasets[release]["dir"]
+        sub_directory = available_datasets[release]["subdir"]
         try:
             np.loadtxt(
                 os.path.join(
                     data_directory,
-                    "20210126_PS-IC40-IC86_VII",  # TODO
-                    "icecube_10year_ps",
-                    "uptime",
+                    directory,
+                    sub_directory,
+                    "uptime",  # TODO: check if applicable
                     "IC40_exp.csv",
                 )
             )
         except FileNotFoundError:
             data_interface = IceCubeData()
-            dataset = data_interface.find("20210126")
+            dataset = data_interface.find(release)
             data_interface.fetch(dataset)
 
         self._irf_periods = []
@@ -328,9 +333,9 @@ class Uptime:
             self._data[p] = np.loadtxt(
                 os.path.join(
                     data_directory,
-                    "20210126_PS-IC40-IC86_VII",  # TODO
-                    "icecube_10year_ps",
-                    "uptime",
+                    directory,
+                    sub_directory,
+                    "uptime",  # TODO: check if applicable
                     f"{p}_exp.csv",
                 )
             )
@@ -919,30 +924,40 @@ class RealEvents(Events):
 
     @classmethod
     def from_event_files(
-        cls, *periods: str, seed: int = 1234, use_all: bool = False, **kwargs
-    ):
+        cls,
+        *periods: str,
+        release: str = I3_10,
+        seed: int = 1234,
+        use_all: bool = False,
+        **kwargs,
+    ):  # TODO: change signature
         """
         Load from files provided by data release,
         if belonging to IC86_II or later, add to IC86_II keyword
         because the same IRF is used
+
         :param periods: Arbitrary number of period identifiers
+        :param release: either I3_10 or I3_14
         :param seed: int, seed for rng
         :param use_all: bool, true if IC86_II should be translated to all data periods with this detector configuration
         """
+
+        directory = available_datasets[release]["dir"]
+        sub_directory = available_datasets[release]["subdir"]
 
         try:
             np.loadtxt(
                 os.path.join(
                     data_directory,
-                    "20210126_PS-IC40-IC86_VII",  # TODO
-                    "icecube_10year_ps",
-                    "uptime",
+                    directory,
+                    sub_directory,
+                    "uptime",  # TODO: check if applicable
                     "IC40_exp.csv",
                 )
             )
         except FileNotFoundError:
             data_interface = IceCubeData()
-            dataset = data_interface.find("20210126")
+            dataset = data_interface.find(release)
             data_interface.fetch(dataset)
             dataset_dir = data_interface.get_path_to(dataset[0])
         periods = list(periods)
@@ -990,14 +1005,14 @@ class RealEvents(Events):
                     temp.events[p] = np.loadtxt(
                         join(
                             data_directory,
-                            f"20210126_PS-IC40-IC86_VII/icecube_10year_ps/events/{p}_exp.csv",  # TODO
+                            f"{str(Path(directory) / Path(sub_directory))}/events/{p}_exp.csv",  # TODO
                         )
                     )
                 except FileNotFoundError:
                     temp.events[p] = np.loadtxt(
                         join(
                             data_directory,
-                            f"20210126_PS-IC40-IC86_VII/icecube_10year_ps/events/{p}_exp-1.csv",  # TODO
+                            f"{str(Path(directory) / Path(sub_directory))}/events/{p}_exp-1.csv",  # TODO
                         )
                     )
                 temp._periods.append(p)
