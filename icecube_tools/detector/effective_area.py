@@ -572,7 +572,7 @@ class EffectiveArea(object):
 
         if dataset_id not in _supported_dataset_ids:
 
-            raise NotImplementedError("This dataset is not currently supported")
+            raise NotImplementedError(f"Data set {dataset_id} is not currently supported")
 
         if fetch:
 
@@ -620,6 +620,6 @@ class EffectiveArea(object):
                     break
 
         elif dataset_id == I3_14:  # TODO
-            pass
+            aeff_file_name = None
 
         return cls(aeff_file_name, period=period, **kwargs)

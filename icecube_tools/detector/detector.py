@@ -105,6 +105,10 @@ class IceCube(Detector):
         Generate a detector from a period string of 2021 data release
         """
 
+        print("ict detector")
+        print("d_id:", dataset_id)
+        print("season:", period)
+        
         aeff = EffectiveArea.from_dataset(dataset_id, period)
         irf = R2021IRF.from_period(period, dataset_id)
 

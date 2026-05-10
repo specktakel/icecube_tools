@@ -64,6 +64,9 @@ class MarginalisedIntegratedEnergyLikelihood(MarginalisedEnergyLikelihood):
         :param max_index: Largest spectral index considered
         """
 
+        print("ict ellh")
+        print("d_id", dataset_id)
+        print("season", period)
         # TODO change reco_bins to cover the range provided by all the pdfs
         # and have the coarsest binning of all pdfs
         detector = IceCube.from_dataset(dataset_id, period=period)
