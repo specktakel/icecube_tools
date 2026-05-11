@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icecube_tools"
+description = "A tool to perform frequentist analysis of public IceCube data"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Francesca Capel", email = "capel.francesca@gmail.com"},
+    {name = "Julian Kuhlmann", email = "julian.kuhlmann@mpp.mpg.de"},
+]
+maintainers = [
+    {name = "Julian Kuhlmann", email = "julian.kuhlmann@mpp.mpg.de"},
+    {name = "Francesca Capel", email = "capel.francesca@gmail.com"},
+]
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "astropy",
+    "iminuit",
+    "jupytext",
+    "requests_cache",
+    "requests",
+    "bs4",
+    "tqdm",
+    "versioneer",
+    "vMF > 0.1",
+    "pandas",
+    "h5py",
+    "healpy",
+    "mpmath"
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest",
+    "pytest-cov"
+]
+docs = [
+    "sphinx",
+    "nbsphinx",
+]
+
+[project.urls]
+Repository = "https://github.com/nu-isance/icecube_tools"
+Issues = "https://github.com/nu-isance/icecube_tools/issues"
+
+[tools.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "icecube_tools/_version.py"
+versionfile_build = "icecube_tools/_version.py"
+tag_prefix = "v"
+parentdir_prefix = "icecube_tools-"
