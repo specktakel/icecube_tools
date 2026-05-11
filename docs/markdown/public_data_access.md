@@ -42,13 +42,13 @@ my_data.data_directory
 The `fetch` method will download this dataset to this default location for later use by `icecube_tools`. This method takes a list of names, so can also be used to download multiple datasets. `fetch` has a built in delay of a few seconds between HTTP requests to avoid spamming the website. `fetch` will not overwrite files by default, but this can be forced with `overwrite=True`.
 
 ```python
-my_data.fetch(found_dataset)
+# my_data.fetch(found_dataset)
 ```
 
 You may not want to use `icecube_tools` for other stuff, so you can also fetch to a specificed location with the keyword `write_to`.
 
 ```python
-my_data.fetch(found_dataset, write_to="data", overwrite=True)
+# my_data.fetch(found_dataset, write_to="data", overwrite=True)
 ```
 
 For convenience, there is also the `fetch_all_to` method to download all the available data to a specified location. We comment this here as it can take a while to execute.
