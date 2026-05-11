@@ -25,12 +25,10 @@ dependencies = [
     "matplotlib",
     "astropy",
     "iminuit",
-    "jupytext",
     "requests_cache",
     "requests",
     "bs4",
     "tqdm",
-    "versioneer",
     "vMF > 0.1",
     "pandas",
     "h5py",
@@ -46,6 +44,10 @@ tests = [
 docs = [
     "sphinx",
     "nbsphinx",
+    "sphinx-rtd-theme",
+    "black",
+    "jupytext",
+    "ipykernel",
 ]
 
 [project.urls]
